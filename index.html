@@ -80,6 +80,8 @@
       .plate.right .mini .mbar i{transform-origin:right;}
       .mbar.posture i{background:var(--post);}
       .mbar.force i{background:var(--force);}
+      .mbar.stamina i{background:#2fd4c4;}
+      .mbar.stamina.low i{background:#ff5252;}
       .mini .lab{font-size:9px; font-weight:700; letter-spacing:.12em; color:var(--mut); line-height:6px; padding-top:0;}
       .pips{display:flex; gap:4px; margin-top:4px;}
       .plate.right .pips{justify-content:flex-end;}
@@ -429,6 +431,9 @@
                 <span class="lab">POSTURE</span><div class="mbar posture"><i id="postL"></i></div>
                 <span class="lab">FORCE</span><div class="mbar force"><i id="forceL"></i></div>
               </div>
+              <div class="mini">
+                <span class="lab">STAMINA</span><div class="mbar stamina" id="stamBarL"><i id="stamL"></i></div>
+              </div>
               <div class="pips" id="pipsL"><div class="pip"></div><div class="pip"></div></div>
               <span class="counterTag" id="counterL">⚔ COUNTER READY</span>
             </div>
@@ -440,6 +445,9 @@
               <div class="mini">
                 <span class="lab">POSTURE</span><div class="mbar posture"><i id="postR"></i></div>
                 <span class="lab">FORCE</span><div class="mbar force"><i id="forceR"></i></div>
+              </div>
+              <div class="mini">
+                <span class="lab">STAMINA</span><div class="mbar stamina" id="stamBarR"><i id="stamR"></i></div>
               </div>
               <div class="pips" id="pipsR"><div class="pip"></div><div class="pip"></div></div>
               <span class="counterTag" id="counterR">⚔ COUNTER READY</span>
@@ -663,7 +671,9 @@
                     <li><span class="k">Feint:</span> during a <b>Heavy</b> swing&rsquo;s wind-up only, press <b>Guard</b> to cancel it &mdash; costs a little Posture and Force, small recovery. Bait their parry, then punish. Once the blade is live, there is no cancelling.</li>
                     <li><span class="k">Dodge:</span> the <b>DASH</b> button is now a true dodge &mdash; untouchable for the first instant, then exposed, with a short lockout before the next. Dodge <i>through</i> a committed Heavy and punish its long recovery; dodge carelessly and you&rsquo;ll be read.</li>
                     <li><span class="k">Saber Clash:</span> if both blades go live in the same instant and meet, they <b>bind</b>: the heavier swing wins; on equal weight, the later-committed swing wins. Never random. The loser pays Posture and staggers.</li>
-                    <li><span class="k">Guard Break:</span> blocked hits drain <b>Posture</b> (Heavies drain most). Posture empty = <b>GUARD BREAK</b> &mdash; wide open, then it recovers. Don&rsquo;t turtle forever: holding block slowly drains it too.</li>
+                    <li><span class="k">Guard Break:</span> blocked hits drain <b>Posture</b> (Heavies drain most). Posture empty = <b>GUARD BREAK</b> &mdash; a full <b>2 seconds</b> wide open, then it recovers. Don&rsquo;t turtle forever: holding block slowly drains it too.</li>
+                    <li><span class="k">Stamina:</span> attacks and dodges spend <b>Stamina</b> (Light 6 &middot; Heavy 12 &middot; Dodge 10) &mdash; the teal bar under Posture. Blocking never drains it. It refills at rest (not while attacking or blocking). Below an action&rsquo;s cost you <b>cannot start it</b> at all &mdash; you flash <b>EXHAUSTED</b> instead. Roughly 6&ndash;8 mixed actions from full before it matters; the CPU lives by the same bar.</li>
+                    <li><span class="k">Frame Data:</span> every strike is data: <b>startup / active / recovery frames</b>, damage, posture damage, stamina cost and a <b>guard type</b> (OVERHEAD = High, LEFT/RIGHT = Mid, LOW = Low). The blade only hits during its <b>active frames</b>, swept along the hilt-to-tip line &mdash; and a press made during recovery or hitstun is <b>buffered for 150ms</b> and fires on your first free frame.</li>
                     <li><span class="k">Force Pull (25 Force):</span> yanks an <b>unguarded</b> rival into combo range. A <b>guarding</b> rival resists &mdash; dragged only part-way, no free combo &mdash; and a <b>fresh timed guard parries</b> the pull outright. 2.5s cooldown, shown on the button.</li>
                     <li><span class="k">Special:</span> Vader &mdash; <b>Force Choke</b> (40): a fixed, fair hold. No mashing: when the prompt <b>flashes blue</b>, press <b>Block once</b> to break free &mdash; and a freed victim can&rsquo;t be re-grabbed for a few seconds. Obi-Wan &mdash; <b>Force Push</b> (30): a wave from his side &mdash; guard the side it comes from, dodge it, or eat the wall.</li>
                     <li><span class="k">Alt Special:</span> Vader &mdash; <b>Saber Throw</b> (30), a spinning blade that flies from his side: guard that side or dodge. Obi-Wan &mdash; <b>Force Repulse</b> (35), a close-range blast that shreds posture.</li>
@@ -1173,7 +1183,13 @@
       CHOKE_DURATION:1.7,        /* fixed choke hold (s) — deterministic, no mash */
       CHOKE_ESC_OPEN:0.75,       /* escape window opens (s into the choke) */
       CHOKE_ESC_CLOSE:1.3,       /* escape window closes */
-      CHOKE_IMMUNE_TICKS:150     /* post-escape / post-release choke immunity (2.5s) */
+      CHOKE_IMMUNE_TICKS:150,    /* post-escape / post-release choke immunity (2.5s) */
+      /* ---- S1: GUARD BREAK + STAMINA ---- */
+      GUARDBREAK_TICKS:120,      /* GuardBroken stagger: 2.0s at 60 ticks/s (S1 ruling 5c) */
+      STAMINA_MAX:100,
+      STAMINA_REGEN_PER_SEC:14,  /* regen rate once the no-spend delay expires */
+      STAMINA_REGEN_DELAY:0.5,   /* seconds after the last spend before regen starts */
+      DODGE_STAMINA_COST:10
     };
     const SIM_STEP=1/TUNING.SIM_HZ;
     /* STAGE 4 guard sensitivity: pad centre dead-zone (px) + stick tilt threshold for direction picks */
@@ -1190,6 +1206,18 @@
        reads, so existing moves keep their shipped feel. Direction is
        stubbed to the current behaviour in Stage 1 (direction =
        hitLevel); real directional combat arrives in Stage 2. */
+    /* S1 ATTACKDATA: GuardType is the block-height class of a strike.
+       It maps honestly onto the shipped direction system: OVERHEAD
+       strikes are High, LEFT/RIGHT strikes are Mid, LOW strikes are
+       Low. No basic saber attack is Unblockable — that class exists
+       in the data (and resolveStrike honours it) for future moves;
+       Force grabs (Pull/Choke) are NOT attacks and keep their own
+       resolution path, so they are never relabelled Unblockable. */
+    function guardTypeForDir(dir){
+      if(dir==='overhead'||dir==='high')return 'High';
+      if(dir==='low')return 'Low';
+      return 'Mid'; /* left / right / mid */
+    }
     function makeMove(o){
       const F=TUNING.SIM_HZ;
       return {
@@ -1198,6 +1226,9 @@
         startup:o.startupFrames/F, active:o.activeFrames/F, recovery:o.recoveryFrames/F,
         damage:o.damage, dmg:o.damage, chip:o.chip||0,
         postureDamage:o.postureDamage, post:o.postureDamage,
+        /* S1: the two fields the original table lacked */
+        staminaCost:o.staminaCost!=null?o.staminaCost:6,
+        guardType:o.guardType||guardTypeForDir(o.direction||o.hitLevel),
         range:o.range, hitLevel:o.hitLevel, height:o.hitLevel,
         kb:o.kb||0, stun:(o.stunFrames||0)/F,
         cancelRules:o.cancelRules||{onHit:[],onBlock:[],onWhiff:[]},
@@ -1208,13 +1239,13 @@
       };
     }
     const ATK={
-      light: makeMove({id:'light', startupFrames:7, activeFrames:6, recoveryFrames:12, damage:6, chip:1, postureDamage:9, range:102, hitLevel:'mid', kb:70, stunFrames:18, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
-      light2:makeMove({id:'light2',startupFrames:6, activeFrames:6, recoveryFrames:12, damage:6, chip:1, postureDamage:10,range:102, hitLevel:'mid', kb:80, stunFrames:19, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
-      light3:makeMove({id:'light3',startupFrames:8, activeFrames:7, recoveryFrames:16, damage:8, chip:2, postureDamage:13,range:106, hitLevel:'mid', kb:150,stunFrames:24, cancelRules:{onHit:['light'],onBlock:[],onWhiff:[]}}),
-      heavy: makeMove({id:'heavy', startupFrames:16,activeFrames:8, recoveryFrames:22, damage:13,chip:3, postureDamage:20,range:112, hitLevel:'mid', kb:180,stunFrames:29, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
-      low:   makeMove({id:'low',   startupFrames:9, activeFrames:7, recoveryFrames:16, damage:7, chip:1, postureDamage:11,range:98,  hitLevel:'low', kb:90, stunFrames:20, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
-      air:   makeMove({id:'air',   startupFrames:5, activeFrames:13,recoveryFrames:8,  damage:10,chip:2, postureDamage:14,range:104, hitLevel:'high',kb:150,stunFrames:25, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
-      throw: makeMove({id:'throw', startupFrames:0, activeFrames:0, recoveryFrames:0,  damage:9, chip:2, postureDamage:12,range:0,   hitLevel:'mid', kb:130,stunFrames:23, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}})
+      light: makeMove({id:'light', startupFrames:7, activeFrames:6, recoveryFrames:12, damage:6, chip:1, postureDamage:9, staminaCost:6, range:102, hitLevel:'mid', kb:70, stunFrames:18, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
+      light2:makeMove({id:'light2',startupFrames:6, activeFrames:6, recoveryFrames:12, damage:6, chip:1, postureDamage:10,staminaCost:6, range:102, hitLevel:'mid', kb:80, stunFrames:19, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
+      light3:makeMove({id:'light3',startupFrames:8, activeFrames:7, recoveryFrames:16, damage:8, chip:2, postureDamage:13,staminaCost:7, range:106, hitLevel:'mid', kb:150,stunFrames:24, cancelRules:{onHit:['light'],onBlock:[],onWhiff:[]}}),
+      heavy: makeMove({id:'heavy', startupFrames:16,activeFrames:8, recoveryFrames:22, damage:13,chip:3, postureDamage:20,staminaCost:12,range:112, hitLevel:'mid', kb:180,stunFrames:29, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+      low:   makeMove({id:'low',   startupFrames:9, activeFrames:7, recoveryFrames:16, damage:7, chip:1, postureDamage:11,staminaCost:6, range:98,  hitLevel:'low', kb:90, stunFrames:20, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+      air:   makeMove({id:'air',   startupFrames:5, activeFrames:13,recoveryFrames:8,  damage:10,chip:2, postureDamage:14,staminaCost:8, range:104, hitLevel:'high',kb:150,stunFrames:25, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+      throw: makeMove({id:'throw', startupFrames:0, activeFrames:0, recoveryFrames:0,  damage:9, chip:2, postureDamage:12,staminaCost:0, range:0,   hitLevel:'mid', kb:130,stunFrames:23, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}})
     };
     /* ================= STAGE 2: PER-CHARACTER MOVE TABLES =================
        Same move ids, character-tuned numbers (spec Part 1G identities):
@@ -1228,12 +1259,12 @@
        stick tilt, or CPU choice) and stored on the attack instance. */
     function buildMoves(v){
       return {
-        light: makeMove({id:'light', startupFrames:v.ls, activeFrames:5, recoveryFrames:v.lr, damage:v.ld, chip:1, postureDamage:v.lp, range:102, hitLevel:'mid', kb:70, stunFrames:18, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
-        light2:makeMove({id:'light2',startupFrames:v.ls-1,activeFrames:5, recoveryFrames:v.lr, damage:v.ld, chip:1, postureDamage:v.lp+1,range:102, hitLevel:'mid', kb:80, stunFrames:19, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
-        light3:makeMove({id:'light3',startupFrames:v.ls+2,activeFrames:6, recoveryFrames:v.lr+4,damage:v.ld+2,chip:2, postureDamage:v.lp+4,range:106, hitLevel:'mid', kb:150,stunFrames:24, cancelRules:{onHit:['light'],onBlock:[],onWhiff:[]}}),
-        heavy: makeMove({id:'heavy', startupFrames:v.hs, activeFrames:6, recoveryFrames:v.hr, damage:v.hd, chip:3, postureDamage:v.hp, range:112, hitLevel:'mid', kb:180,stunFrames:29, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
-        low:   makeMove({id:'low',   startupFrames:v.ls-1,activeFrames:6, recoveryFrames:v.lr+2,damage:v.ld+1,chip:1, postureDamage:v.lp+2,range:98,  hitLevel:'low', kb:90, stunFrames:20, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
-        air:   makeMove({id:'air',   startupFrames:5, activeFrames:13,recoveryFrames:8,  damage:v.hd-3,chip:2, postureDamage:v.lp+5,range:104, hitLevel:'high',kb:150,stunFrames:25, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+        light: makeMove({id:'light', startupFrames:v.ls, activeFrames:5, recoveryFrames:v.lr, damage:v.ld, chip:1, postureDamage:v.lp, staminaCost:6, range:102, hitLevel:'mid', kb:70, stunFrames:18, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
+        light2:makeMove({id:'light2',startupFrames:v.ls-1,activeFrames:5, recoveryFrames:v.lr, damage:v.ld, chip:1, postureDamage:v.lp+1,staminaCost:6, range:102, hitLevel:'mid', kb:80, stunFrames:19, cancelRules:{onHit:['light','heavy'],onBlock:[],onWhiff:[]}}),
+        light3:makeMove({id:'light3',startupFrames:v.ls+2,activeFrames:6, recoveryFrames:v.lr+4,damage:v.ld+2,chip:2, postureDamage:v.lp+4,staminaCost:7, range:106, hitLevel:'mid', kb:150,stunFrames:24, cancelRules:{onHit:['light'],onBlock:[],onWhiff:[]}}),
+        heavy: makeMove({id:'heavy', startupFrames:v.hs, activeFrames:6, recoveryFrames:v.hr, damage:v.hd, chip:3, postureDamage:v.hp, staminaCost:12,range:112, hitLevel:'mid', kb:180,stunFrames:29, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+        low:   makeMove({id:'low',   startupFrames:v.ls-1,activeFrames:6, recoveryFrames:v.lr+2,damage:v.ld+1,chip:1, postureDamage:v.lp+2,staminaCost:6, range:98,  hitLevel:'low', kb:90, stunFrames:20, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
+        air:   makeMove({id:'air',   startupFrames:5, activeFrames:13,recoveryFrames:8,  damage:v.hd-3,chip:2, postureDamage:v.lp+5,staminaCost:8, range:104, hitLevel:'high',kb:150,stunFrames:25, cancelRules:{onHit:[],onBlock:[],onWhiff:[]}}),
         throw: ATK.throw
       };
     }
@@ -1245,7 +1276,7 @@
     function castDef(f,kind){
       const F=TUNING.SIM_HZ;
       const su=kind==='spec'&&f.char==='vader'?14:12, rec=kind==='alt'?25:20;
-      return {id:'cast_'+kind,type:'cast_'+kind,direction:'mid',startupFrames:su,activeFrames:4,recoveryFrames:rec,startup:su/F,active:4/F,recovery:rec/F,damage:0,dmg:0,chip:0,postureDamage:0,post:0,range:0,hitLevel:'mid',height:'mid',kb:0,stun:0,cancelRules:{onHit:[],onBlock:[],onWhiff:[]},onBlock:{},onHit:{},onWhiff:{},forceCost:0};
+      return {id:'cast_'+kind,type:'cast_'+kind,direction:'mid',startupFrames:su,activeFrames:4,recoveryFrames:rec,startup:su/F,active:4/F,recovery:rec/F,damage:0,dmg:0,chip:0,postureDamage:0,post:0,staminaCost:0,guardType:null,range:0,hitLevel:'mid',height:'mid',kb:0,stun:0,cancelRules:{onHit:[],onBlock:[],onWhiff:[]},onBlock:{},onHit:{},onWhiff:{},forceCost:0};
     }
     /* SPAWN (Stage 6): round-start positions, set ONCE here so every
        round start, rematch, drill reset and the online countdown spawn
@@ -1260,6 +1291,11 @@
         char:charKey, cfg:CHARS[charKey], x:x, y:GROUND, vx:0, vy:0,
         facing: isPlayer?1:-1, isPlayer:!!isPlayer,
         hp:100, dispHp:100, force:35, posture:100,
+        /* S1 STAMINA (0-100): spent by attacks (per AttackData
+           staminaCost) and dodges; blocking never drains it (Posture
+           is the defence resource). stamDelayT is the no-spend delay
+           before regen; stamCueT throttles the EXHAUSTED cue. */
+        stamina:100, stamDelayT:0, stamCueT:0,
         state:'idle', stateT:0, atk:null, atkHasHit:false, chain:0,
         buf:{light:0,heavy:0,up:0,dash:0,pull:0,special:0,alt:0},
         blocking:false, blockPressT:-9, blockLow:false, blockStun:0, holdT:0,
@@ -1305,7 +1341,97 @@
     }
 
     /* ================= COMBAT CORE ================= */
-    function setState(f,s){ f.state=s; f.stateT=0; if(s!=='attack'&&s!=='cast')f.atk=null; }
+    /* ================= S1: FORMAL STATE MACHINE =================
+       The prompt's named state set, made authoritative. The internal
+       sim keeps its shipped state strings (they are what the pose
+       layers, AI, drills and the online state hash already speak);
+       FighterState names them, TRANSITIONS governs them, and
+       canonicalStateOf() maps any live fighter onto the prompt's
+       vocabulary — including the states that are OVERLAYS rather than
+       f.state values in this engine:
+         Blocking  = f.blocking flag over a locomotion state
+         Parrying  = blocking inside the fresh-guard parry window
+         BlockStun = f.blockStun timer over a locomotion state
+         Recovery  = the recovery phase of an attack (t past active)
+         Clashing  = the clash event itself (resolveClash resolves in
+                     one tick into stagger/idle — it is a transition,
+                     never a resting state, by design)
+       Every sim state change goes through setState(), which CONSULTS
+       TRANSITIONS: a transition that is not listed is REJECTED (the
+       fighter keeps its current state) and recorded in
+       SM_VIOLATIONS for the harness. Voluntary actions (attack /
+       cast / dash / jump) are only reachable from the locomotion and
+       air states that could already start them; hit reactions
+       (hitstun / stagger / guardbreak / knockdown / choked / pulled)
+       are interrupts, reachable from any non-terminal state, exactly
+       as the tuned game already played. 'defeated' is terminal and
+       is entered only from round resolution (koRound / timeOut /
+       double-KO), never from a normal hit. The one escape hatch is
+       setState(f,s,true) — a FORCED reset, used only by drill/round
+       reset paths, never by combat code. */
+    const FighterState=Object.freeze({
+      Idle:'idle', Moving:'walk', Attacking:'attack', Blocking:'blocking',
+      Parrying:'parrying', BlockStun:'blockstun', HitStun:'hitstun',
+      GuardBroken:'guardbreak', Clashing:'clashing', Recovery:'recovery',
+      /* the shipped extension states the prompt's set maps onto */
+      Crouch:'crouch', Casting:'cast', Dash:'dash', Jump:'jump',
+      HitStunAir:'hitstun_air', Stagger:'stagger', Knockdown:'knockdown',
+      Getup:'getup', Defeated:'defeated', Choked:'choked', Pulled:'pulled'
+    });
+    const _LOCO_OUT=['idle','walk','crouch','dash','jump','attack','cast'];
+    const _HIT_OUT=['hitstun','hitstun_air','stagger','guardbreak','knockdown','choked','pulled','defeated'];
+    const TRANSITIONS={
+      idle:      _LOCO_OUT.concat(_HIT_OUT),
+      walk:      _LOCO_OUT.concat(_HIT_OUT),
+      crouch:    _LOCO_OUT.concat(_HIT_OUT),
+      dash:      ['idle','walk','crouch'].concat(_HIT_OUT),
+      jump:      ['idle','attack','dash'].concat(_HIT_OUT),
+      attack:    ['idle','walk','crouch','jump','attack'].concat(_HIT_OUT),
+      cast:      ['idle'].concat(_HIT_OUT),
+      hitstun:   ['idle','hitstun'].concat(_HIT_OUT),
+      hitstun_air:['idle','hitstun','hitstun_air','knockdown','choked','pulled','defeated'],
+      stagger:   ['idle','stagger'].concat(_HIT_OUT),
+      guardbreak:['idle','guardbreak'].concat(_HIT_OUT),
+      knockdown: ['getup','idle','hitstun','hitstun_air','knockdown','defeated'],
+      getup:     ['idle','hitstun','defeated'],
+      choked:    ['idle','knockdown','defeated'],
+      pulled:    ['stagger','idle','defeated'],
+      defeated:  ['defeated']
+    };
+    const SM_VIOLATIONS=[];
+    function canTransition(from,to){
+      if(from===to)return true;
+      if(to==='defeated')return from!=='defeated'; /* round resolution may end any state */
+      const t=TRANSITIONS[from];
+      return !!(t&&t.indexOf(to)>=0);
+    }
+    function setState(f,s,force){
+      if(f.state===s)return true; /* idempotent: locomotion re-asserts itself every tick */
+      if(!force&&!canTransition(f.state,s)){
+        let tk=-1; try{ tk=G.tick; }catch(e){ tk=-1; }
+        if(SM_VIOLATIONS.length<64)SM_VIOLATIONS.push({from:f.state,to:s,tick:tk});
+        return false;
+      }
+      f.state=s; f.stateT=0; if(s!=='attack'&&s!=='cast')f.atk=null;
+      return true;
+    }
+    /* the prompt-vocabulary state of a live fighter, overlays included */
+    function canonicalStateOf(f){
+      if(!f)return FighterState.Idle;
+      if(f.state==='attack'&&f.atk){
+        const a=f.atk,d=a.def;
+        return a.t>=d.startup+d.active?FighterState.Recovery:FighterState.Attacking;
+      }
+      if(f.state==='cast')return FighterState.Attacking;
+      if(f.state==='guardbreak')return FighterState.GuardBroken;
+      if(f.state==='hitstun'||f.state==='hitstun_air'||f.state==='stagger'||f.state==='knockdown'||f.state==='choked'||f.state==='pulled')return FighterState.HitStun;
+      if(f.state==='defeated')return FighterState.Defeated;
+      if(f.state==='getup')return FighterState.Recovery;
+      if(f.blockStun>0)return FighterState.BlockStun;
+      if(f.blocking)return (G&&G.tick-f.guardSetTick<=TUNING.PARRY_WINDOW_TICKS&&f.parryLockT<=0)?FighterState.Parrying:FighterState.Blocking;
+      if(f.state==='walk'||f.state==='dash'||f.state==='jump')return FighterState.Moving;
+      return FighterState.Idle;
+    }
     /* STAGE 1 STATE MACHINE — states are separated, never overloaded:
        hitstun (standing) / hitstun_air (airborne) / knockdown (always
        recovers via getup) / getup (brief protection) / guardbreak
@@ -1318,6 +1444,28 @@
     function isDown(f){ return f.state==='knockdown'||f.state==='defeated'; }
     function isOut(f){ return f.state==='defeated'; }
     function canAct(f){ return (f.state==='idle'||f.state==='walk'||f.state==='crouch') && f.blockStun<=0 && f.feintT<=0; }
+    /* ================= S1: STAMINA =================
+       One spend path for every fighter — player, CPU and online
+       alike, since all three act through startAttack / the dodge
+       branch of fighterUpdate. A fighter whose stamina is below an
+       action's cost simply cannot start it: no weakened attacks, no
+       hidden modifiers — a resource gate with a readable cue. */
+    function staminaCostOf(f,type){
+      const table=MOVES[f.char]||ATK;
+      const m=table[type]||ATK[type];
+      return m?(m.staminaCost||0):0;
+    }
+    function spendStamina(f,cost){
+      if(cost<=0)return true;
+      f.stamina=clamp(f.stamina-cost,0,TUNING.STAMINA_MAX);
+      f.stamDelayT=TUNING.STAMINA_REGEN_DELAY;
+      return true;
+    }
+    function exhaustedCue(f){
+      if(f.stamCueT>0)return;
+      f.stamCueT=1;
+      addFloat(f.x,f.y-208,'EXHAUSTED','#ffb340',16);
+    }
     /* ================= HITBOX / HURTBOX (Stage 1) =================
        Real per-active-frame AABB overlap. The hitbox exists ONLY
        while the current attack is inside its active frames and is
@@ -1349,6 +1497,107 @@
     function boxesOverlap(a,b){ return a.x0<b.x1 && a.x1>b.x0 && a.y0<b.y1 && a.y1>b.y0; }
     function gainForce(f,n){ f.force=clamp(f.force+n,0,100); }
 
+    /* ================= S1: SWEPT BLADE COLLISION =================
+       The blade is a SEGMENT — hilt (HiltTransform: the fist, offset
+       along the blade axis so the emitter sits just past the hand)
+       to tip (TipTransform) — rebuilt from the same swing math the
+       pose layers render (swingPose + easeSwing + recovery ease-back),
+       so the collision blade is the blade you see. A strike connects
+       when the capsule swept by that segment BETWEEN the previous
+       and current tick (previous segment, mid-tick segment, current
+       segment, and the tip's travel path, each fattened by
+       BLADE_RADIUS) touches the defender's hurtbox. A fast arc can
+       therefore no longer tunnel through a target between two ticks:
+       the mid-tick segment and the tip path cover the travel.
+       The test runs STRICTLY inside ActiveFrames (the caller only
+       asks while getHitbox() is live) and one hit per activation is
+       still enforced by f.atkHasHit. The swept test is UNIONED with
+       the shipped band AABB: the AABB is the AttackData range/band
+       gate, the sweep adds the hits the blade physically made — a
+       strict improvement, never a lost hit. All pure arithmetic on
+       sim state: deterministic, identical on both online clients. */
+    const BLADE_RADIUS=26, BLADE_LENGTH=106;
+    function bladeSegment(f,tt){
+      if(!f)return null;
+      let ang=-0.5, handX=20, handDY=-100;
+      if(f.state==='attack'&&f.atk){
+        const a=f.atk,d=a.def,t=(tt!=null?tt:a.t),sp=swingPose(a);
+        const swingP=clamp((t-d.startup)/Math.max(.05,d.active),0,1);
+        const windP=clamp(t/Math.max(.05,d.startup),0,1);
+        ang=lerp(sp.from,sp.to,easeSwing(swingP));
+        if(t<d.startup)ang=lerp(-0.55,sp.from,windP);
+        const recP=clamp((t-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
+        if(t>d.startup+d.active)ang=lerp(sp.to,-0.55,easeOut(recP));
+        handX=22; handDY=-84+sp.handY;
+      }else if(f.blocking){
+        const gd=f.blockLow?'low':f.dirSel;
+        ang=gd==='left'?1.85:gd==='overhead'?-2.65:gd==='low'?-0.65:-1.5; handX=16; handDY=-104;
+      }else if(f.state==='cast'){ ang=-0.35; handX=26; handDY=-110; }
+      else if(f.state==='hitstun'||f.state==='hitstun_air'||f.state==='stagger'||f.state==='guardbreak'){ ang=0.3; handX=8; handDY=-92; }
+      const hx=f.x+f.facing*handX, hy=f.y+handDY;
+      const dx=f.facing*Math.cos(ang), dy=Math.sin(ang);
+      return {hx:hx+dx*6,hy:hy+dy*6,tx:hx+dx*BLADE_LENGTH,ty:hy+dy*BLADE_LENGTH,ang:ang};
+    }
+    function _ptSegDist(px,py,s){
+      const vx=s.tx-s.hx, vy=s.ty-s.hy;
+      const L2=vx*vx+vy*vy||1;
+      let t=((px-s.hx)*vx+(py-s.hy)*vy)/L2; t=clamp(t,0,1);
+      const ex=s.hx+vx*t-px, ey=s.hy+vy*t-py;
+      return Math.sqrt(ex*ex+ey*ey);
+    }
+    function _ptBoxDist(px,py,b){
+      const dx=Math.max(b.x0-px,0,px-b.x1), dy=Math.max(b.y0-py,0,py-b.y1);
+      return Math.sqrt(dx*dx+dy*dy);
+    }
+    function _segsCross(ax,ay,bx,by,cx,cy,dx,dy){
+      const d1=(dx-cx)*(ay-cy)-(dy-cy)*(ax-cx), d2=(dx-cx)*(by-cy)-(dy-cy)*(bx-cx);
+      const d3=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax), d4=(bx-ax)*(dy-ay)-(by-ay)*(dx-ax);
+      return ((d1>0)!==(d2>0))&&((d3>0)!==(d4>0));
+    }
+    /* distance from a blade segment {hx,hy,tx,ty} to an AABB (0 = touching) */
+    function segBoxDist(s,b){
+      if(!s||!b)return 1e9;
+      if(s.hx>=b.x0&&s.hx<=b.x1&&s.hy>=b.y0&&s.hy<=b.y1)return 0;
+      if(s.tx>=b.x0&&s.tx<=b.x1&&s.ty>=b.y0&&s.ty<=b.y1)return 0;
+      const edges=[[b.x0,b.y0,b.x1,b.y0],[b.x1,b.y0,b.x1,b.y1],[b.x1,b.y1,b.x0,b.y1],[b.x0,b.y1,b.x0,b.y0]];
+      for(let i=0;i<4;i++){ const e=edges[i]; if(_segsCross(s.hx,s.hy,s.tx,s.ty,e[0],e[1],e[2],e[3]))return 0; }
+      let m=Math.min(_ptBoxDist(s.hx,s.hy,b),_ptBoxDist(s.tx,s.ty,b));
+      const corners=[[b.x0,b.y0],[b.x1,b.y0],[b.x1,b.y1],[b.x0,b.y1]];
+      for(let i=0;i<4;i++)m=Math.min(m,_ptSegDist(corners[i][0],corners[i][1],s));
+      return m;
+    }
+    /* distance between two blade segments (0 = crossing) */
+    function segSegDist(a,b){
+      if(!a||!b)return 1e9;
+      if(_segsCross(a.hx,a.hy,a.tx,a.ty,b.hx,b.hy,b.tx,b.ty))return 0;
+      return Math.min(
+        _ptSegDist(a.hx,a.hy,b),_ptSegDist(a.tx,a.ty,b),
+        _ptSegDist(b.hx,b.hy,a),_ptSegDist(b.tx,b.ty,a));
+    }
+    /* the swept test: did f's blade capsule pass through def's
+       hurtbox at any point during the last tick? dt = tick length */
+    function sweptBladeHit(f,def,dt){
+      if(!f.atk||f.state!=='attack')return false;
+      const hurt=getHurtbox(def), a=f.atk;
+      const sNow=bladeSegment(f,a.t), sPrev=bladeSegment(f,a.t-dt), sMid=bladeSegment(f,a.t-dt/2);
+      if(!sNow||!sPrev||!sMid)return false;
+      if(segBoxDist(sPrev,hurt)<=BLADE_RADIUS)return true;
+      if(segBoxDist(sMid,hurt)<=BLADE_RADIUS)return true;
+      if(segBoxDist(sNow,hurt)<=BLADE_RADIUS)return true;
+      /* the tip's own travel path between ticks */
+      if(segBoxDist({hx:sPrev.tx,hy:sPrev.ty,tx:sNow.tx,ty:sNow.ty},hurt)<=BLADE_RADIUS)return true;
+      return false;
+    }
+    /* blade-vs-blade sweep for the clash detector: either fighter's
+       current or previous-tick segment within bind distance */
+    function sweptBladeClash(f,o,dt){
+      const aN=bladeSegment(f), aP=bladeSegment(f,f.atk?f.atk.t-dt:0);
+      const oN=bladeSegment(o), oP=bladeSegment(o,o.atk?o.atk.t+dt:0); /* foe projected one tick forward, as in the shipped clash check */
+      if(!aN||!oN)return false;
+      const R=BLADE_RADIUS+6;
+      return segSegDist(aN,oN)<=R||(aP&&segSegDist(aP,oN)<=R)||(oP&&segSegDist(aN,oP)<=R);
+    }
+
     /* STAGE 2: every saber attack carries a real DIRECTION, resolved
        at swing start from the attacker's selected direction (dirSel —
        set by Z/X/C, stick tilt, or the CPU through the same ctl.dir
@@ -1357,15 +1606,27 @@
        is never mutated and the pose layers read atk.dir for the arc. */
     function startAttack(f,type,dirOverride){
       const table=MOVES[f.char]||ATK;
-      const base=table[type]||ATK[type]; if(!base)return;
+      const base=table[type]||ATK[type]; if(!base)return false;
+      /* S1 STAMINA GATE: below the move's staminaCost the attack
+         cannot start at all (the buffered press is consumed by the
+         caller, the cue explains why). Checked BEFORE any state
+         change, so a gated chain-cancel leaves the current attack
+         untouched. Player, CPU and online all pass through here. */
+      const cost=base.staminaCost||0;
+      if(f.stamina<cost){ exhaustedCue(f); return false; }
       let dir=dirOverride||null;
       if(type==='low')dir='low';
       else if(type==='air')dir='overhead';
       if(!dir)dir=f.dirSel||'right';
-      const d=Object.assign({},base,{direction:dir});
-      f.atk={type:type,t:0,def:d,dir:dir,activeTick:-1}; f.atkHasHit=false; f.blocking=false; setState(f,'attack');
+      /* S1: the per-attack copy carries the GuardType of the CHOSEN
+         direction (overhead=High, left/right=Mid, low=Low) */
+      const d=Object.assign({},base,{direction:dir,guardType:guardTypeForDir(dir)});
+      if(!setState(f,'attack'))return false; /* S1: illegal overlap — rejected by the transition table */
+      spendStamina(f,cost);
+      f.atk={type:type,t:0,def:d,dir:dir,activeTick:-1}; f.atkHasHit=false; f.blocking=false;
       if(type==='heavy'||type==='light3')SFX.swingHeavy(); else SFX.swing();
       if(type==='air')f.airAtkUsed=true;
+      return true;
     }
     /* swing geometry per direction, shared by the GLB pose layer and
        the 2D fallback so both show the same wind-up -> arc -> follow-
@@ -1436,7 +1697,7 @@
       }
       // --- BLOCK: matching direction only. Wrong direction falls
       //     through to a clean hit — that IS the directional rule. ---
-      if(def.blocking && guardDirOf(def)===atkDirOf(atkDef) && def.state!=='choked' && !opts.unblockable){
+      if(def.blocking && guardDirOf(def)===atkDirOf(atkDef) && def.state!=='choked' && !opts.unblockable && atkDef.guardType!=='Unblockable'){
         SFX.blockHit(); sparks(midX,midY,def.cfg.blade,12,300);
         def.hp=Math.max(0,def.hp-(atkDef.chip||0));
         def.posture-=(POST*(def.holdT>0.6?1.35:1));
@@ -1447,7 +1708,7 @@
         if(def.posture<=0){
           def.posture=0; SFX.breakG(); sparks(def.x,def.y-100,'#ffb340',24,420);
           addFloat(def.x,def.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340');
-          def.blocking=false; setState(def,'guardbreak'); def.stateT=-1.5; shake=Math.max(shake,6);
+          def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); /* S1: GuardBroken stagger = 2.0s */
         }
         if(def.hp<=0)koRound(att);
         return 'block';
@@ -1517,10 +1778,10 @@
       addFloat(mx,my-56,'SABER CLASH!','#ffe9a8',22); showCallout('SABER CLASH!','#ffe9a8');
       loser.posture=clamp(loser.posture-14,0,100);
       winner.posture=clamp(winner.posture-5,0,100);
-      loser.atk=null; setState(loser,'stagger'); loser.stateT=-0.3; loser.vx=-loser.facing*90;
-      winner.atk=null; setState(winner,'idle');
+      loser.atk=null; setState(loser,'stagger'); loser.stateT=-0.3; loser.vx=-loser.facing*150; /* S1: the winner visibly pushes the loser back out of the bind */
+      winner.atk=null; setState(winner,'idle'); winner.vx=-winner.facing*40;
       a.clashCd=0.6; b.clashCd=0.6; a.lastClashTick=G.tick; b.lastClashTick=G.tick;
-      hitstop=Math.max(hitstop,.09); shake=Math.max(shake,5);
+      hitstop=Math.max(hitstop,.12); shake=Math.max(shake,5); /* S1: both animations freeze on the bind (hitstop) with sparks at the blade midpoint (above) */
       breakCombo(a); breakCombo(b);
       return winner;
     }
@@ -1585,7 +1846,7 @@
       }else{ // OBI PUSH — a wave from the caster's side: guard the side it comes from
         ring(caster.x+caster.facing*40,caster.y-95,'#7db8ff',120); SFX.force();
         if(dist<=305 && !isDown(def)){
-          resolveStrike(caster,def,{damage:8,dmg:8,chip:3,postureDamage:16,post:16,kb:200,stun:.3,hitLevel:'mid',height:'mid',type:'push',direction:caster.facing>0?'left':'right'},{push:true});
+          resolveStrike(caster,def,{damage:8,dmg:8,chip:3,postureDamage:16,post:16,staminaCost:0,guardType:'Mid',kb:200,stun:.3,hitLevel:'mid',height:'mid',type:'push',direction:caster.facing>0?'left':'right'},{push:true});
         } else addFloat(caster.x,caster.y-200,'PUSH — TOO FAR','#9a937e',14);
       }
     }
@@ -1598,7 +1859,7 @@
       }else{ // REPULSE
         SFX.force(); ring(caster.x,caster.y-90,'#7db8ff',150); sparks(caster.x,caster.y-90,'#7db8ff',22,420);
         if(dist<=150 && !isDown(def)){
-          resolveStrike(caster,def,{damage:10,dmg:10,chip:2,postureDamage:36,post:36,kb:300,stun:.42,hitLevel:'mid',height:'mid',type:'repulse',direction:caster.facing>0?'left':'right'},{});
+          resolveStrike(caster,def,{damage:10,dmg:10,chip:2,postureDamage:36,post:36,staminaCost:0,guardType:'Mid',kb:300,stun:.42,hitLevel:'mid',height:'mid',type:'repulse',direction:caster.facing>0?'left':'right'},{});
           if(def.state==='hitstun'||def.state==='hitstun_air')def.vx=caster.facing*430;
         }
       }
@@ -1665,8 +1926,19 @@
       const wantBlock = c.block && (f.state==='idle'||f.state==='walk'||f.state==='crouch'||f.blocking);
       f.blocking = !!(wantBlock && f.y>=GROUND-2 && f.blockStun<=0);
       f.blockLow = f.blocking && !!c.down;
-      if(f.blocking){ f.holdT+=dt; f.posture-=dt*(f.holdT>0.55?7:2.2); if(f.posture<=0){ f.posture=0; SFX.breakG(); addFloat(f.x,f.y-205,'GUARD BREAK!','#ffb340',25); sparks(f.x,f.y-100,'#ffb340',24,420); f.blocking=false; setState(f,'guardbreak'); f.stateT=-1.5; } }
+      if(f.blocking){ f.holdT+=dt; f.posture-=dt*(f.holdT>0.55?7:2.2); if(f.posture<=0){ f.posture=0; SFX.breakG(); addFloat(f.x,f.y-205,'GUARD BREAK!','#ffb340',25); sparks(f.x,f.y-100,'#ffb340',24,420); f.blocking=false; setState(f,'guardbreak'); f.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; } }
       else { f.holdT=0; if(!isBusy(f))f.posture=clamp(f.posture+dt*11,0,100); }
+      /* S1 STAMINA REGEN: ticks down the no-spend delay, then refills
+         at STAMINA_REGEN_PER_SEC while the fighter is in a locomotion
+         state and NOT blocking (Posture is the defence resource;
+         blocking pauses stamina regen but never drains it). Attack,
+         cast and stun states neither spend (beyond the start cost)
+         nor regen. */
+      if(f.stamDelayT>0)f.stamDelayT-=dt;
+      if(f.stamCueT>0)f.stamCueT-=dt;
+      if(f.stamDelayT<=0&&!f.blocking&&(f.state==='idle'||f.state==='walk'||f.state==='crouch')){
+        f.stamina=clamp(f.stamina+TUNING.STAMINA_REGEN_PER_SEC*dt,0,TUNING.STAMINA_MAX);
+      }
 
       switch(f.state){
         case 'idle': case 'walk': case 'crouch': {
@@ -1680,6 +1952,10 @@
              dodge itself gets read and punished. */
           if(edge('dash')&&f.dodgeCd<=0){
             f.buf.dash=0;
+            /* S1 STAMINA GATE: the dodge costs TUNING.DODGE_STAMINA_COST;
+               below it the dodge cannot start (same rule for CPU/online) */
+            if(f.stamina<TUNING.DODGE_STAMINA_COST){ exhaustedCue(f); break; }
+            spendStamina(f,TUNING.DODGE_STAMINA_COST);
             let dir=f.facing;
             if(c.left)dir=-1; else if(c.right)dir=1;
             setState(f,'dash'); f.dashT=.30; f.dashDir=dir; f.invulnT=.20; f.dodgeCd=TUNING.DODGE_CD_TICKS/TUNING.SIM_HZ; SFX.dash(); break;
@@ -1703,8 +1979,10 @@
           }
           const spd=f.blocking?60:238;
           f.vx=lerp(f.vx,mv*spd,1-Math.pow(.0001,dt));
-          if(Math.abs(mv)>0&&Math.abs(f.vx)>30){ f.state='walk'; f.walkPhase+=dt*11; }
-          else f.state = c.down?'crouch':'idle';
+          /* S1: locomotion changes go through the transition table
+             too (setState is idempotent for the current state) */
+          if(Math.abs(mv)>0&&Math.abs(f.vx)>30){ setState(f,'walk'); f.walkPhase+=dt*11; }
+          else setState(f, c.down?'crouch':'idle');
           break;
         }
         case 'dash': { /* the dodge: fast while i-frames last, slow exposed tail */
@@ -1764,10 +2042,15 @@
                  active on the same tick bind instead of the first
                  updater winning by update order alone */
               const ob=getHitbox(o)||getHitbox(o,o.atk.t+dt);
-              if(ob&&boxesOverlap(hb,ob)){ if(o.atk.activeTick<0)o.atk.activeTick=G.tick; resolveClash(f,o); break; }
+              /* S1: the bind triggers on the shipped box overlap OR
+                 the swept blade segments meeting (hilt→tip capsules
+                 within bind distance during simultaneous ActiveFrames) */
+              if(ob&&(boxesOverlap(hb,ob)||sweptBladeClash(f,o,dt))){ if(o.atk.activeTick<0)o.atk.activeTick=G.tick; resolveClash(f,o); break; }
             }
             if(hb&&o.invulnT<=0&&o.state!=='choked'&&!isOut(o)&&!(o.y<GROUND-70&&a.type==='low')){
-              if(boxesOverlap(hb,getHurtbox(o))){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
+              /* S1 SWEPT COLLISION: band AABB (the AttackData gate) OR
+                 the blade capsule swept along hilt→tip since last tick */
+              if(boxesOverlap(hb,getHurtbox(o))||sweptBladeHit(f,o,dt)){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
             }
           }
           if(f.state!=='attack')break; /* parried mid-swing: stagger owns the fighter now, no same-tick cancel out of it */
@@ -2923,7 +3206,7 @@
 
     /* ================= HUD ================= */
     const hudEls={};
-    ['nameL','nameR','hpBarL','hpBarR','postL','postR','forceL','forceR','pipsL','pipsR','counterL','counterR','timer','roundLab','comboL','comboR'].forEach(id=>hudEls[id]=$(id));
+    ['nameL','nameR','hpBarL','hpBarR','postL','postR','forceL','forceR','stamL','stamR','stamBarL','stamBarR','pipsL','pipsR','counterL','counterR','timer','roundLab','comboL','comboR'].forEach(id=>hudEls[id]=$(id));
     function plateFor(f){ return f===leftFighter()?{hp:hudEls.hpBarL,post:hudEls.postL,force:hudEls.forceL,counter:hudEls.counterL,combo:hudEls.comboL}:{hp:hudEls.hpBarR,post:hudEls.postR,force:hudEls.forceR,counter:hudEls.counterR,combo:hudEls.comboR}; }
     function leftFighter(){ return P&&P.x<=C.x?P:(P||null); }
     /* HUD plates are bound to player (left plate = YOU) for readability */
@@ -2936,6 +3219,10 @@
         hpEl.classList.toggle('low',f.hp<=30);
         (side==='L'?hudEls.postL:hudEls.postR).style.transform='scaleX('+(f.posture/100)+')';
         (side==='L'?hudEls.forceL:hudEls.forceR).style.transform='scaleX('+(f.force/100)+')';
+        /* S1: stamina bar under posture/force — turns red under 25 */
+        const stamEl=side==='L'?hudEls.stamL:hudEls.stamR, stamBar=side==='L'?hudEls.stamBarL:hudEls.stamBarR;
+        if(stamEl)stamEl.style.transform='scaleX('+((f.stamina||0)/100)+')';
+        if(stamBar)stamBar.classList.toggle('low',(f.stamina||0)<25);
         (side==='L'?hudEls.counterL:hudEls.counterR).classList.toggle('on',f.counterT>0);
         const cb=side==='L'?hudEls.comboL:hudEls.comboR;
         cb.classList.toggle('on',f.combo>=2);
@@ -3047,7 +3334,7 @@
       $('controls').classList.remove('on');
       G.phase='over'; setHum(false);
     }
-    function resetDrillPositions(){ P.x=SPAWN_L; C.x=SPAWN_R; P.vx=0; C.vx=0; if(isBusy(P))setState(P,'idle'); if(isBusy(C))setState(C,'idle'); }
+    function resetDrillPositions(){ P.x=SPAWN_L; C.x=SPAWN_R; P.vx=0; C.vx=0; if(isBusy(P))setState(P,'idle',true); if(isBusy(C))setState(C,'idle',true); }
     function buildDrillTools(){
       const t=$('drillTools'); if(!t)return; t.innerHTML='';
       if(!TR)return;
@@ -3056,7 +3343,7 @@
         mk('DUMMY: '+TR.dummyMode.toUpperCase(),()=>{ TR.dummyMode=TR.dummyMode==='stand'?'block':TR.dummyMode==='block'?'attack':'stand'; buildDrillTools(); });
         if(TR.dummyMode==='block')mk('GUARD: '+TR.dummyDir.toUpperCase(),()=>{ const seq=['left','overhead','right','low']; TR.dummyDir=seq[(seq.indexOf(TR.dummyDir)+1)%4]; buildDrillTools(); });
         if(TR.dummyMode==='attack')mk('PATTERN: '+TR.dummyPattern.toUpperCase(),()=>{ const seq=['light','heavy','low','mix']; TR.dummyPattern=seq[(seq.indexOf(TR.dummyPattern)+1)%4]; buildDrillTools(); });
-        mk('REFILL BARS',()=>{ P.hp=100; P.posture=100; P.force=100; C.hp=100; C.posture=100; C.force=100; drillSay('Bars refilled'); });
+        mk('REFILL BARS',()=>{ P.hp=100; P.posture=100; P.force=100; P.stamina=100; C.hp=100; C.posture=100; C.force=100; C.stamina=100; drillSay('Bars refilled'); });
         mk(G.debugHitboxes?'HITBOXES: ON':'HITBOXES: OFF',()=>{ setHitboxDebug(!G.debugHitboxes); buildDrillTools(); });
       }
       mk('EXIT',()=>exitTraining());
@@ -3071,7 +3358,7 @@
       if(TR.id==='free'){
         info=say||('Dummy: '+TR.dummyMode.toUpperCase()+(TR.dummyMode==='block'?' · guard '+TR.dummyDir.toUpperCase():TR.dummyMode==='attack'?' · pattern '+TR.dummyPattern.toUpperCase():''));
         const atk=P.atk?(' · atk '+P.atk.type+' t='+(Math.round(P.atk.t*60))+'f / startup '+(P.atk.def.startupFrames)+'f'):'';
-        score='YOU: '+P.state+atk+' · last input '+TR.lastInput+' · dummy: '+C.state;
+        score='YOU: '+canonicalStateOf(P)+' ('+P.state+')'+atk+' · stam '+Math.round(P.stamina)+' · posture '+Math.round(P.posture)+' · last input '+TR.lastInput+' · dummy: '+C.state+' · stam '+Math.round(C.stamina);
       }
       else if(TR.id==='parry'){ info=say||'Fresh-timed guard in the announced direction, as the strike lands.'; score='PARRIES '+TR.score+' / '+TR.tries+' · PASS: 7 OF 10'; }
       else if(TR.id==='guard'){ info=say||'Hold the announced guard direction before the strike lands.'; score='GUARDED '+TR.score+' / '+TR.tries+' · STREAK '+TR.streak+' (BEST '+TR.best+') · PASS: 8 OF 12'; }
@@ -3502,8 +3789,8 @@
       const fmt=(key,elId)=>{
         const el=$(elId); if(!el)return;
         const M=MOVES[key], ch=CHARS[key];
-        el.innerHTML='<div><span>LIGHT</span><b>'+M.light.startupFrames+'f startup · '+M.light.damage+' dmg</b></div>'
-          +'<div><span>HEAVY</span><b>'+M.heavy.startupFrames+'f startup · '+M.heavy.damage+' dmg · '+M.heavy.postureDamage+' posture</b></div>'
+        el.innerHTML='<div><span>LIGHT</span><b>'+M.light.startupFrames+'f startup · '+M.light.damage+' dmg · '+M.light.staminaCost+' stam · '+M.light.guardType+'</b></div>'
+          +'<div><span>HEAVY</span><b>'+M.heavy.startupFrames+'f startup · '+M.heavy.damage+' dmg · '+M.heavy.postureDamage+' posture · '+M.heavy.staminaCost+' stam · '+M.heavy.guardType+'</b></div>'
           +'<div><span>SPECIAL</span><b>'+ch.specName+' · '+ch.specCost+' Force</b></div>'
           +'<div><span>ALT</span><b>'+ch.altName+' · '+ch.altCost+' Force</b></div>'
           +'<div><span>GUARD</span><b>'+(key==='vader'?'Committed — big posture payoff':'Mobile — fast direction changes')+'</b></div>';
@@ -3848,7 +4135,7 @@
       const SS=['idle','walk','crouch','dash','jump','attack','cast','hitstun','hitstun_air','stagger','guardbreak','knockdown','defeated','getup','choked','pulled'];
       const F=(f)=>{ if(!f){ mix(-1); return; }
         mix(Math.round(f.x*4)); mix(Math.round(f.y*4)); mix(Math.round(f.vx*2)); mix(Math.round(f.vy*2));
-        mix(f.hp*8); mix(Math.round(f.posture*2)); mix(Math.round(f.force*2)); mix(f.facing);
+        mix(f.hp*8); mix(Math.round(f.posture*2)); mix(Math.round(f.force*2)); mix(Math.round((f.stamina||0)*2)); mix(f.facing);
         mix(SS.indexOf(f.state)); mix(Math.round(f.stateT*60)); mix(f.dirSel==='left'?1:f.dirSel==='overhead'?2:3);
         mix(f.blocking?1:0); mix(f.combo); mix(f.atk?(f.atk.type.length*7+f.atk.type.charCodeAt(0)):0); mix(f.atk?Math.round(f.atk.t*60):-1);
         mix(Math.round(f.pullCd*60)); mix(Math.round(f.specCd*60)); mix(Math.round(f.altCd*60)); mix(Math.round(f.dodgeCd*60));
@@ -4180,7 +4467,13 @@
       /* STAGE 5 harness getters: pose sampler (saber-animation
          continuity checks), 3D-ownership (fallback checks) and live
          effect/quality counters (performance + leak checks) */
-      poseFor:poseFor,threeOwns:threeOwns,get stick(){return stick;},get particles(){return particles;},get floats(){return floats;},get projectiles(){return projectiles;},get qLevel(){return qLevel;},get fpsEMA(){return fpsEMA;},get CAM(){return CAM;},get glInfo(){ const gl=document.getElementById('gl'); return gl?{bufW:gl.width,bufH:gl.height,clientW:gl.clientWidth,clientH:gl.clientHeight,pixelRatio:renderer3?renderer3.getPixelRatio():null}:null; },get NET(){return NET;},get OF(){return OF;},stateHash:stateHash,packCtl:packCtl,unpackCtl:unpackCtl,onlineSample:onlineSample,onlineStartMatch:onlineStartMatch,selfF:selfF,oppF:oppF,SPAWN:{l:280,r:680}};
+      poseFor:poseFor,threeOwns:threeOwns,get stick(){return stick;},get particles(){return particles;},get floats(){return floats;},get projectiles(){return projectiles;},get qLevel(){return qLevel;},get fpsEMA(){return fpsEMA;},get CAM(){return CAM;},get glInfo(){ const gl=document.getElementById('gl'); return gl?{bufW:gl.width,bufH:gl.height,clientW:gl.clientWidth,clientH:gl.clientHeight,pixelRatio:renderer3?renderer3.getPixelRatio():null}:null; },get NET(){return NET;},get OF(){return OF;},stateHash:stateHash,packCtl:packCtl,unpackCtl:unpackCtl,onlineSample:onlineSample,onlineStartMatch:onlineStartMatch,selfF:selfF,oppF:oppF,SPAWN:{l:280,r:680},
+      /* S1 harness surface: formal state machine, AttackData,
+         stamina and swept-collision primitives — the acceptance
+         suites drive these against the REAL engine objects */
+      FighterState:FighterState,TRANSITIONS:TRANSITIONS,canTransition:canTransition,canonicalStateOf:canonicalStateOf,SM_VIOLATIONS:SM_VIOLATIONS,
+      setState:setState,startAttack:startAttack,resolveClash:resolveClash,fighterUpdate:fighterUpdate,makeFighter:makeFighter,
+      getHitbox:getHitbox,getHurtbox:getHurtbox,boxesOverlap:boxesOverlap,bladeSegment:bladeSegment,sweptBladeHit:sweptBladeHit,sweptBladeClash:sweptBladeClash,segBoxDist:segBoxDist,segSegDist:segSegDist,guardTypeForDir:guardTypeForDir,staminaCostOf:staminaCostOf,ATK:ATK};
     </script>
   </body>
 </html>
