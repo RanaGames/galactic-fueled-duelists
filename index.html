@@ -50,7 +50,7 @@
       #fightStage.forced #timer{font-size:32px;}
       #fightStage.forced .pname{font-size:16px; letter-spacing:.06em;}
       #fightStage.forced .pname .side{font-size:.72em; letter-spacing:.14em;}
-      #fightStage.forced #announceTxt{font-size:68px;}
+      #fightStage.forced #announceTxt{font-size:40px;}
       #fightStage.forced .combo b{font-size:40px;}
       #fightStage.forced #topBtns{top:64px;}
       #arena{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#000; overflow:hidden; box-shadow:0 0 70px rgba(0,0,0,.85);}
@@ -97,9 +97,10 @@
       .combo.on{opacity:1;}
 
       /* ---------- announce / prompts ---------- */
-      #announce{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:6;}
-      #announceTxt{font-family:"Cinzel",serif; font-weight:800; font-size:clamp(30px,9vw,74px); letter-spacing:.08em; color:#fff; text-align:center; text-shadow:0 0 24px rgba(255,232,31,.7),0 4px 10px #000; opacity:0; transform:scale(.8); transition:opacity .18s, transform .18s; padding:0 12px;}
-      #announceTxt.show{opacity:1; transform:scale(1);}
+      #announce{position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding-top:10.5%; pointer-events:none; z-index:6;}
+      #announceTxt{font-family:"Cinzel",serif; font-weight:800; font-size:clamp(22px,5vw,42px); letter-spacing:.08em; color:#fff; text-align:center; text-shadow:0 0 24px rgba(255,232,31,.7),0 4px 10px #000; opacity:0; transform:scale(.8); transition:opacity .18s, transform .18s; padding:0 12px;}
+      #announceTxt.show{opacity:1; transform:scale(1); animation:annShrink 1s ease-out forwards;}
+      @keyframes annShrink{0%{transform:scale(1.14);}22%{transform:scale(1);}75%{transform:scale(.93); opacity:1;}100%{transform:scale(.9); opacity:.88;}}
       #announceTxt small{display:block; font-size:.32em; letter-spacing:.3em; color:var(--gold); margin-top:6px;}
       #mashPrompt{position:absolute; left:50%; bottom:31%; transform:translateX(-50%); z-index:6; display:none; text-align:center; pointer-events:none;}
       #mashPrompt.on{display:block;}
@@ -296,6 +297,28 @@
       #gateBtn:active{transform:scale(.97);}
       @keyframes gatePulse{0%,100%{box-shadow:0 0 20px rgba(255,55,35,.45), inset 0 0 0 1px rgba(216,191,138,.35), inset 0 1px 0 rgba(239,220,171,.18);}50%{box-shadow:0 0 30px rgba(90,160,255,.5), inset 0 0 0 1px rgba(216,191,138,.35), inset 0 1px 0 rgba(239,220,171,.18);}}
       @media (prefers-reduced-motion: reduce){ #gateBtn{animation:none; box-shadow:0 0 20px rgba(255,55,35,.4), inset 0 0 0 1px rgba(216,191,138,.35);} }
+      /* ---------- ONLINE DUEL (lockstep over the shared relay) ---------- */
+      #pingHud{position:absolute; top:60px; left:50%; transform:translateX(-50%); z-index:5; font-size:11px; font-weight:700; letter-spacing:.14em; color:var(--mut); text-shadow:0 1px 3px #000; pointer-events:none; display:none;}
+      #pingHud.on{display:block;}
+      #pingHud b{color:var(--mgold-hi);}
+      #netBanner{position:absolute; top:104px; left:50%; transform:translateX(-50%); z-index:8; display:none; max-width:min(520px,92%); text-align:center; padding:8px 18px; background:rgba(8,8,14,.88); border:1px solid var(--mgold-line); border-radius:3px; font-weight:700; letter-spacing:.1em; font-size:14px; color:var(--cream); pointer-events:none;}
+      #netBanner.on{display:block;}
+      #netBanner.warn{border-color:#ff5147; color:#ffb3ab;}
+      .onlineCode{font-family:"Cinzel",serif; font-size:34px; font-weight:800; letter-spacing:.3em; color:var(--mgold-hi); text-align:center; padding:6px 0 2px; text-shadow:0 0 16px rgba(216,191,138,.35);}
+      .onlineRow{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;}
+      .onlineRow .grow{flex:1 1 140px;}
+      .oinput{min-height:47px; width:100%; background:rgba(5,5,9,.85); border:1px solid var(--mgold-line); border-radius:3px; color:var(--cream); font-family:"Rajdhani",sans-serif; font-size:16px; font-weight:600; letter-spacing:.08em; padding:0 12px;}
+      .oinput.code{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.24em; text-align:center; font-size:19px;}
+      .obtn{min-height:47px; padding:0 18px; border-radius:3px; border:1px solid var(--mgold-line); background:linear-gradient(180deg, #221f1b, #100e11); color:var(--cream); font-weight:700; letter-spacing:.12em; font-size:13.5px; box-shadow:inset 0 1px 0 rgba(239,220,171,.12);}
+      .obtn.primary{background:linear-gradient(180deg, #e8d5a2, #c8ab6d); color:#17130a; border-color:var(--mgold-hi);}
+      .obtn.sel{background:linear-gradient(180deg, #e8d5a2, #c8ab6d); color:#17130a; border-color:var(--mgold-hi);}
+      .obtn:disabled{opacity:.42;}
+      .obtn:active{transform:scale(.985);}
+      #onlineStatus{font-size:13.5px; font-weight:600; color:var(--mut); letter-spacing:.04em; min-height:20px; padding:4px 2px;}
+      #onlineStatus b{color:var(--mgold-hi);}
+      .peerLine{font-size:14px; font-weight:600; color:var(--cream); letter-spacing:.05em; padding:6px 2px; line-height:1.5;}
+      .peerLine .rdy{color:#37d67a; font-weight:700; letter-spacing:.12em;}
+      .peerLine .notrdy{color:var(--mut); font-weight:700; letter-spacing:.12em;}
       .overlay.hidden{display:none;}
       .card{width:min(880px,100%); margin:auto; flex:0 0 auto; background:linear-gradient(180deg, rgba(21,19,22,.94), rgba(8,8,12,.96)); border:1px solid var(--mgold-line); border-radius:4px; padding:18px clamp(14px,3vw,28px) 22px; box-shadow:0 18px 60px rgba(0,0,0,.7);}
       h1.title{font-family:"Cinzel",serif; font-weight:800; text-align:center; margin:2px 0 0; font-size:clamp(26px,6.4vw,46px); letter-spacing:.1em; color:#fff;}
@@ -434,6 +457,8 @@
           <button class="tbtn" id="muteBtn" aria-label="Mute">♪</button>
           <button class="tbtn" id="pauseBtn" aria-label="Pause">❚❚</button>
         </div>
+        <div id="pingHud">PING <b>—</b></div>
+        <div id="netBanner"></div>
 
         <!-- touch controls -->
         <div id="controls">
@@ -504,6 +529,7 @@
             <h1 class="title" id="endTitle">VICTORY</h1>
             <div class="tagline" id="endSub">THE FORCE IS WITH YOU</div>
             <p id="endStats" style="color:var(--mut); line-height:1.5; margin:6px 0 0;"></p>
+            <p id="endOnlineNote" style="color:var(--mgold-hi); font-weight:700; letter-spacing:.08em; margin:8px 0 0; display:none;"></p>
             <div class="endBtns">
               <button class="primary" id="rematchBtn">REMATCH</button>
               <button id="changeBtn">SELECT FIGHTER</button>
@@ -536,6 +562,18 @@
             </div>
           </div>
         </div>
+        <!-- ONLINE DESYNC: inside the fight layer, so it shares the one
+             stage transform with the canvas, HUD and controls -->
+        <div class="overlay hidden" id="desyncScreen">
+          <div class="card" style="max-width:460px; text-align:center;">
+            <h1 class="title" style="font-size:28px; color:#ff6f66;">CONNECTION DESYNC</h1>
+            <div class="tagline">THE TWO DUELS DIVERGED</div>
+            <p style="color:var(--mut); line-height:1.5; margin:6px 0 0;">Your phone and your opponent&rsquo;s phone disagree about the fight, so this match can&rsquo;t honestly continue. No winner is declared.</p>
+            <div class="endBtns">
+              <button class="primary" id="desyncMenuBtn">RETURN TO LOBBY</button>
+            </div>
+          </div>
+        </div>
         </div><!-- /fightStage -->
 
         <div id="wipe" aria-hidden="true"></div>
@@ -549,6 +587,7 @@
               <button id="startDuelBtn">START DUEL</button>
               <nav class="menuNav" aria-label="Main menu">
                 <button class="mnav sel" data-panel="panelVersus"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c-4.4 0-7 3.1-7 7.1 0 3 .9 5.3 1.6 9.4h10.8c.7-4.1 1.6-6.4 1.6-9.4C19 6.1 16.4 3 12 3z"/><path d="M12 7.6c-2.1 0-3.4 1.7-3.4 3.9 0 1.5.6 2.7 1.3 3.9h4.2c.7-1.2 1.3-2.4 1.3-3.9 0-2.2-1.3-3.9-3.4-3.9z"/></svg></span>FIGHTER SELECT</button>
+                <button class="mnav" data-panel="panelOnline"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.3 3.9 5.2 3.9 8.5s-1.3 6.2-3.9 8.5c-2.6-2.3-3.9-5.2-3.9-8.5s1.3-6.2 3.9-8.5z"/></svg></span>ONLINE DUEL</button>
                 <button class="mnav" data-panel="panelTraining"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" aria-hidden="true"><path d="M9.6 14.4 L19.6 4.4" stroke="#6db3ff" stroke-width="2.1"/><path d="M8.1 15.9 L4.7 19.3" stroke="#d8bf8a" stroke-width="2.7"/><path d="M7.2 13.2 l3.4 3.4" stroke="#d8bf8a" stroke-width="1.6"/></svg></span>TRAINING</button>
                 <button class="mnav" data-panel="panelSettings"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg></span>SETTINGS</button>
                 <button class="mnav" data-panel="panelExtras"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></span>CREDITS</button>
@@ -592,6 +631,25 @@
                 </div>
                 <button id="startBtn">BEGIN THE DUEL</button>
                 <div class="fineprint">Thumb stick on mobile — push to move, hold back to block &middot; full keyboard on desktop &middot; fan-made demo</div>
+              </section>
+              <section class="mpanel" id="panelOnline">
+                <h2 class="ptitle"><span class="sw">ONLINE DUEL</span> &mdash; LOCKSTEP VERSUS</h2>
+                <p class="psub">Duel a friend over the shared relay server &mdash; the same room system as Kings &amp; Dice and The Dale. Both phones run the identical simulation and swap inputs tick by tick, so there is no host advantage. Create a room and share the code, or join with theirs.</p>
+                <div id="onlineStatus">Server: not connected.</div>
+                <div class="setRow"><span class="slab">YOUR NAME</span><span style="flex:1 1 160px;"><input class="oinput" id="onlineName" maxlength="16" value="PLAYER" autocomplete="off"></span></div>
+                <div class="setRow"><span class="slab">YOUR FIGHTER</span><span><button class="obtn ocbtn sel" data-ochar="vader">DARTH VADER</button> <button class="obtn ocbtn" data-ochar="obi">OBI-WAN</button></span><span class="sdesc">Mirror picks are allowed &mdash; the P1 / P2 plate and the YOU tag keep the sides straight on both phones.</span></div>
+                <div class="setRow"><span class="slab">ARENA (HOST PICKS)</span><span><button class="obtn oabtn" data-oarena="temple">TEMPLE</button> <button class="obtn oabtn" data-oarena="fortress">FORTRESS</button> <button class="obtn oabtn sel" data-oarena="ashen">ASHEN</button></span></div>
+                <div id="onlineHome">
+                  <div class="onlineRow"><button class="obtn primary grow" id="createRoomBtn">CREATE ROOM</button></div>
+                  <div class="onlineRow"><span class="grow"><input class="oinput code" id="joinCode" maxlength="6" placeholder="ROOM CODE" autocomplete="off" autocapitalize="characters"></span><button class="obtn" id="joinRoomBtn">JOIN ROOM</button></div>
+                </div>
+                <div id="onlineLobby" style="display:none;">
+                  <div class="onlineCode" id="onlineCodeTxt">------</div>
+                  <p class="psub" style="text-align:center;" id="onlineLobbySub">Share this code with your opponent.</p>
+                  <div class="peerLine" id="peerLine">Waiting for an opponent&hellip;</div>
+                  <div class="onlineRow"><button class="obtn primary grow" id="readyBtn" disabled>READY</button><button class="obtn" id="leaveRoomBtn">LEAVE ROOM</button></div>
+                </div>
+                <div class="fineprint">Best of 3 rounds &middot; 99 seconds &middot; pause is disabled online &middot; leaving mid-match forfeits &middot; if the server can&rsquo;t be reached, every local mode still works exactly as before.</div>
               </section>
               <section class="mpanel" id="panelTraining">
                 <h2 class="ptitle"><span class="sw">TRAINING</span> &mdash; THE WAY OF THE DUEL</h2>
@@ -1189,6 +1247,14 @@
       const su=kind==='spec'&&f.char==='vader'?14:12, rec=kind==='alt'?25:20;
       return {id:'cast_'+kind,type:'cast_'+kind,direction:'mid',startupFrames:su,activeFrames:4,recoveryFrames:rec,startup:su/F,active:4/F,recovery:rec/F,damage:0,dmg:0,chip:0,postureDamage:0,post:0,range:0,hitLevel:'mid',height:'mid',kb:0,stun:0,cancelRules:{onHit:[],onBlock:[],onWhiff:[]},onBlock:{},onHit:{},onWhiff:{},forceCost:0};
     }
+    /* SPAWN (Stage 6): round-start positions, set ONCE here so every
+       round start, rematch, drill reset and the online countdown spawn
+       identically on both clients. Gap is 400 units: combined ignited
+       blade reach is ~300 (hand offset + hilt + blade, both layers),
+       so at rest neither tip crosses the rival's hurtbox and the two
+       blades keep clear air between them — while one second of walk
+       (238 u/s) or a single dodge still closes into strike range. */
+    const SPAWN_L=280, SPAWN_R=680;
     function makeFighter(charKey,x,isPlayer){
       return {
         char:charKey, cfg:CHARS[charKey], x:x, y:GROUND, vx:0, vy:0,
@@ -1220,6 +1286,10 @@
     let simAcc=0; /* fixed-timestep accumulator (seconds of game time) */
 
     function foe(f){ return f===P?C:P; }
+    /* the LOCAL player's fighter: slot P in every local mode; online it
+       is whichever sim slot this client occupies (P1 host / P2 guest) */
+    function selfF(){ return (typeof G!=='undefined'&&G&&G.online&&G.localSlot==='C')?C:P; }
+    function oppF(){ return selfF()===P?C:P; }
     function addFloat(x,y,txt,color,size){ floats.push({x:x,y:y,txt:txt,color:color||'#fff',t:0,life:1.05,size:size||21}); if(floats.length>40)floats.splice(0,floats.length-40); }
     function sparks(x,y,color,n,power){
       for(let i=0;i<(n||14);i++){
@@ -2305,7 +2375,7 @@
           obiWpnBone.getWorldPosition(_v1);
           _v2.set(s*Math.cos(pose.ang),-Math.sin(pose.ang),0);
           obiBlade.visible=f.state!=='choked';
-          obiBlade.position.copy(_v1).addScaledVector(_v2,-0.05);
+          obiBlade.position.copy(_v1).addScaledVector(_v2,-0.015); /* socket tune: the weapon bone sits at hilt y≈-0.015 — mid-grip, fist wrapped on the hilt with the emitter clear of the fingers, no floating gap */
           obiBlade.quaternion.setFromUnitVectors(_YUP,_v2);
           if(f.counterT>0){ const p=1+Math.sin(t*14)*0.12; obiBlade.scale.set(p,1,p); } else obiBlade.scale.set(1,1,1);
         } else if(obiBlade) obiBlade.visible=false;
@@ -2313,7 +2383,7 @@
         const th=-pose.ang-0.35;
         vaderArm.rotation.z=th+Math.PI/2;
         vaderSaber.visible=f.state!=='choked';
-        vaderSaber.position.set(.03+Math.cos(th)*0.54, 1.5+Math.sin(th)*0.54, .26);
+        vaderSaber.position.set(.03+Math.cos(th)*0.52, 1.5+Math.sin(th)*0.52, .26); /* socket tune: hilt origin lands exactly on the fist at the arm's end (0.52), so the grip wraps the hilt instead of hovering past it */
         /* grip pass: blade aligned with the ARM axis (th), not the raw
            pose angle — the old -pose.ang rotation left a permanent
            ~20° wrist kink between Vader's forearm and his blade */
@@ -2878,12 +2948,13 @@
          drains over the fixed hold; when the escape window opens
          the prompt flashes blue: ONE Block press breaks free */
       const mash=$('mashPrompt');
-      if(P.state==='choked'){
+      const SF=selfF();
+      if(SF.state==='choked'){
         mash.classList.add('on');
         const mb=$('mashBig');
-        if(mb){ mb.textContent=P.chokeEscOpen?'TAP BLOCK — BREAK FREE!':'FORCE CHOKE — WAIT FOR THE FLASH…'; mb.style.color=P.chokeEscOpen?'#bfe6ff':'#fff'; mb.style.textShadow=P.chokeEscOpen?'0 0 16px #59c2ff':'0 0 16px var(--red)'; }
-        $('mashBar').style.width=clamp((1-P.chokeElapsed/TUNING.CHOKE_DURATION)*100,0,100)+'%';
-        $('mashBar').style.background=P.chokeEscOpen?'#59c2ff':'';
+        if(mb){ mb.textContent=SF.chokeEscOpen?'TAP BLOCK — BREAK FREE!':'FORCE CHOKE — WAIT FOR THE FLASH…'; mb.style.color=SF.chokeEscOpen?'#bfe6ff':'#fff'; mb.style.textShadow=SF.chokeEscOpen?'0 0 16px #59c2ff':'0 0 16px var(--red)'; }
+        $('mashBar').style.width=clamp((1-SF.chokeElapsed/TUNING.CHOKE_DURATION)*100,0,100)+'%';
+        $('mashBar').style.background=SF.chokeEscOpen?'#59c2ff':'';
       }
       else mash.classList.remove('on');
       /* guard direction icons + ability cooldown readouts (Stage 2:
@@ -2895,28 +2966,28 @@
          out in words too — shape + label, never colour alone */
       if(G.cbSymbols){ if(gl)gl.textContent+=' '+(P.blockLow?'LOW':P.dirSel.toUpperCase()); if(gr)gr.textContent+=' '+(C.blockLow?'LOW':C.dirSel.toUpperCase()); }
       const cdTxt=(base,cd)=>cd>0?base+' '+cd.toFixed(1):base;
-      const pl=$('pullLab'); if(pl)pl.textContent=cdTxt('PULL',P.pullCd);
-      const sl=$('specLab'); if(sl)sl.textContent=cdTxt(P.cfg.specName.replace('FORCE ',''),P.specCd);
-      const al=$('altLab'); if(al)al.textContent=cdTxt(P.cfg.altName.replace('FORCE ','').replace('SABER ',''),P.altCd);
-      document.querySelector('[data-btn="pull"]').classList.toggle('cd',P.pullCd>0||P.force<25);
-      document.querySelector('[data-btn="special"]').classList.toggle('cd',P.specCd>0||P.force<P.cfg.specCost);
-      document.querySelector('[data-btn="alt"]').classList.toggle('cd',P.altCd>0||P.force<P.cfg.altCost);
+      const pl=$('pullLab'); if(pl)pl.textContent=cdTxt('PULL',SF.pullCd);
+      const sl=$('specLab'); if(sl)sl.textContent=cdTxt(SF.cfg.specName.replace('FORCE ',''),SF.specCd);
+      const al=$('altLab'); if(al)al.textContent=cdTxt(SF.cfg.altName.replace('FORCE ','').replace('SABER ',''),SF.altCd);
+      document.querySelector('[data-btn="pull"]').classList.toggle('cd',SF.pullCd>0||SF.force<25);
+      document.querySelector('[data-btn="special"]').classList.toggle('cd',SF.specCd>0||SF.force<SF.cfg.specCost);
+      document.querySelector('[data-btn="alt"]').classList.toggle('cd',SF.altCd>0||SF.force<SF.cfg.altCost);
       /* STAGE 3: guard pad highlight follows the player's real guard
          direction (the same value the guard chip above the fighter
          shows); Force strip slots mirror cost/cooldown state; the
          pad and the Classic BLOCK button glow gold while the player's
          heavy is inside its feint window */
-      const curGd=P.blockLow?'low':P.dirSel;
-      document.querySelectorAll('.gz').forEach(z=>z.classList.toggle('on',curGd===z.dataset.gz&&(P.blocking||padState.held||padState.dir===z.dataset.gz)));
+      const curGd=SF.blockLow?'low':SF.dirSel;
+      document.querySelectorAll('.gz').forEach(z=>z.classList.toggle('on',curGd===z.dataset.gz&&(SF.blocking||padState.held||padState.dir===z.dataset.gz)));
       const fsPull=$('fsPullLab'), fsSpec=$('fsSpecLab'), fsAlt=$('fsAltLab');
-      if(fsPull)fsPull.textContent=cdTxt('PULL · 25',P.pullCd);
-      if(fsSpec)fsSpec.textContent=cdTxt(P.cfg.specName.replace('FORCE ','')+' · '+P.cfg.specCost,P.specCd);
-      if(fsAlt)fsAlt.textContent=cdTxt(P.cfg.altName.replace('FORCE ','').replace('SABER ','')+' · '+P.cfg.altCost,P.altCd);
+      if(fsPull)fsPull.textContent=cdTxt('PULL · 25',SF.pullCd);
+      if(fsSpec)fsSpec.textContent=cdTxt(SF.cfg.specName.replace('FORCE ','')+' · '+SF.cfg.specCost,SF.specCd);
+      if(fsAlt)fsAlt.textContent=cdTxt(SF.cfg.altName.replace('FORCE ','').replace('SABER ','')+' · '+SF.cfg.altCost,SF.altCd);
       const sPull=document.querySelector('[data-fslot="pull"]'), sSpec=document.querySelector('[data-fslot="special"]'), sAlt=document.querySelector('[data-fslot="alt"]');
-      if(sPull)sPull.classList.toggle('cd',P.pullCd>0||P.force<25);
-      if(sSpec)sSpec.classList.toggle('cd',P.specCd>0||P.force<P.cfg.specCost);
-      if(sAlt)sAlt.classList.toggle('cd',P.altCd>0||P.force<P.cfg.altCost);
-      const feintable=P.state==='attack'&&P.atk&&P.atk.type==='heavy'&&P.atk.t>=TUNING.FEINT_MIN_TICKS/60&&P.atk.t<P.atk.def.startup;
+      if(sPull)sPull.classList.toggle('cd',SF.pullCd>0||SF.force<25);
+      if(sSpec)sSpec.classList.toggle('cd',SF.specCd>0||SF.force<SF.cfg.specCost);
+      if(sAlt)sAlt.classList.toggle('cd',SF.altCd>0||SF.force<SF.cfg.altCost);
+      const feintable=SF.state==='attack'&&SF.atk&&SF.atk.type==='heavy'&&SF.atk.t>=TUNING.FEINT_MIN_TICKS/60&&SF.atk.t<SF.atk.def.startup;
       const gpEl=$('guardPad'); if(gpEl)gpEl.classList.toggle('feintGlow',!!feintable);
       const bbEl=document.querySelector('[data-btn="block"]'); if(bbEl)bbEl.classList.toggle('feintGlow',!!feintable);
       if(TR)updateDrillHud();
@@ -2976,7 +3047,7 @@
       $('controls').classList.remove('on');
       G.phase='over'; setHum(false);
     }
-    function resetDrillPositions(){ P.x=320; C.x=640; P.vx=0; C.vx=0; if(isBusy(P))setState(P,'idle'); if(isBusy(C))setState(C,'idle'); }
+    function resetDrillPositions(){ P.x=SPAWN_L; C.x=SPAWN_R; P.vx=0; C.vx=0; if(isBusy(P))setState(P,'idle'); if(isBusy(C))setState(C,'idle'); }
     function buildDrillTools(){
       const t=$('drillTools'); if(!t)return; t.innerHTML='';
       if(!TR)return;
@@ -3156,7 +3227,7 @@
     }
 
     /* ================= GAME FLOW ================= */
-    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'ashen',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,cumP:null,cumC:null};
+    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'ashen',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,cumP:null,cumC:null,online:false,localSlot:'P',pChar:'vader',cChar:'obi',oppChar:'obi',seed:0,forfeitWin:false};
     /* ================= SETTINGS SAVE (versioned, Stage 3) =================
        One versioned settings object. v1 (pre-Stage-3 saves, if any)
        had no layout field — migration fills new fields from defaults
@@ -3225,18 +3296,31 @@
       startRound();
     }
     function startRound(){
-      const cpuChar=G.playerChar==='vader'?'obi':'vader';
-      P=makeFighter(G.playerChar,320,true);
-      C=makeFighter(cpuChar,640,false);
+      const pChar=G.online?G.pChar:G.playerChar;
+      const cChar=G.online?G.cChar:(G.playerChar==='vader'?'obi':'vader');
+      P=makeFighter(pChar,SPAWN_L,true);
+      C=makeFighter(cChar,SPAWN_R,false);
       if(G.cumP){ P.stats=G.cumP; C.stats=G.cumC; }
       projectiles=[]; particles=[]; floats=[]; hitstop=0; slowmo=1; simAcc=0;
       G.timer=99; G.phase='intro'; G.introT=0;
       snapCamera();
       $('hud').classList.add('on'); $('controls').classList.add('on'); $('topBtns').classList.add('on');
-      hudEls.nameL.innerHTML=P.cfg.name+' <span class="side">YOU</span>';
-      hudEls.nameR.innerHTML=C.cfg.name+' <span class="side">CPU · '+DIFF[G.diff].name+'</span>';
-      $('specLab').textContent=P.cfg.specName.replace('FORCE ','');
-      $('altLab').textContent=P.cfg.altName.replace('FORCE ','').replace('SABER ','');
+      /* HUD BINDING: the plates belong to the SIM SLOTS (left = P slot,
+         right = C slot) and to the fighters who actually spawned into
+         them; the YOU tag follows the LOCAL player to whichever slot
+         they occupy — an online guest (P2) sees YOU on the right plate,
+         with their own name and bars. Ability labels and cooldown
+         readouts always describe the local fighter (selfF). */
+      const selfF0=(G.online&&G.localSlot==='C')?C:P;
+      if(G.online){
+        hudEls.nameL.innerHTML=P.cfg.name+' <span class="side">'+(G.localSlot==='P'?'YOU · P1':'P1 · RIVAL')+'</span>';
+        hudEls.nameR.innerHTML=C.cfg.name+' <span class="side">'+(G.localSlot==='C'?'YOU · P2':'P2 · RIVAL')+'</span>';
+      }else{
+        hudEls.nameL.innerHTML=P.cfg.name+' <span class="side">YOU</span>';
+        hudEls.nameR.innerHTML=C.cfg.name+' <span class="side">CPU · '+DIFF[G.diff].name+'</span>';
+      }
+      $('specLab').textContent=selfF0.cfg.specName.replace('FORCE ','');
+      $('altLab').textContent=selfF0.cfg.altName.replace('FORCE ','').replace('SABER ','');
       updatePips();
       announce('ROUND '+G.round+'<small>FIRST TO TAKE 2 ROUNDS WINS</small>',1300);
       setHum(true);
@@ -3279,13 +3363,17 @@
     }
     function endMatch(){
       G.phase='over'; setHum(false);
-      const won=G.winsP>G.winsC;
-      $('endTitle').textContent=won?'VICTORY':'DEFEAT';
+      const SF=selfF();
+      const won=G.online?(G.localSlot==='P'?G.winsP>G.winsC:G.winsC>G.winsP):G.winsP>G.winsC;
+      $('endTitle').textContent=G.forfeitWin?'VICTORY — BY FORFEIT':(won?'VICTORY':'DEFEAT');
       $('endTitle').style.color=won?'#ffe81f':'#ff6f66';
-      $('endSub').textContent=won?'THE FORCE IS WITH YOU':'YOUR HATRED HAS NOT SAVED YOU — TRAIN, AND RETURN';
-      const s=P.stats;
+      $('endSub').textContent=G.forfeitWin?'YOUR OPPONENT LEFT THE DUEL':(won?'THE FORCE IS WITH YOU':'YOUR HATRED HAS NOT SAVED YOU — TRAIN, AND RETURN');
+      const s=SF.stats;
       const pAtt=Math.max(0,s.parryAttempts||0), pAcc=pAtt?Math.round(100*s.parries/pAtt):0;
-      $('endStats').innerHTML='Rounds '+G.winsP+' – '+G.winsC+' · Winner: <b style="color:#fff">'+(won?P.cfg.name:C.cfg.name)+'</b><br>Parry accuracy <b style="color:#fff">'+s.parries+' / '+pAtt+' ('+pAcc+'%)</b> · Successful punishes <b style="color:#fff">'+s.punishes+'</b><br>Clean hits <b style="color:#fff">'+s.hits+'</b> · Longest combo <b style="color:#fff">'+s.maxCombo+' hits</b> · Blocks <b style="color:#fff">'+s.blocks+'</b> · Force Pulls <b style="color:#fff">'+s.pulls+'</b> · Specials <b style="color:#fff">'+s.specs+'</b><br>Difficulty: '+DIFF[G.diff].name+' · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+P.cfg.name+'.';
+      const winnerF=G.winsP>G.winsC?P:C;
+      $('endStats').innerHTML='Rounds '+G.winsP+' – '+G.winsC+' · Winner: <b style="color:#fff">'+winnerF.cfg.name+'</b><br>Parry accuracy <b style="color:#fff">'+s.parries+' / '+pAtt+' ('+pAcc+'%)</b> · Successful punishes <b style="color:#fff">'+s.punishes+'</b><br>Clean hits <b style="color:#fff">'+s.hits+'</b> · Longest combo <b style="color:#fff">'+s.maxCombo+' hits</b> · Blocks <b style="color:#fff">'+s.blocks+'</b> · Force Pulls <b style="color:#fff">'+s.pulls+'</b> · Specials <b style="color:#fff">'+s.specs+'</b><br>'+(G.online?('Online duel · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'):('Difficulty: '+DIFF[G.diff].name+' · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'));
+      const en=$('endOnlineNote'); if(en){ if(G.online){ en.style.display='block'; en.textContent=G.forfeitWin?'Opponent disconnected — the match is yours.':'Online duel complete.'; } else en.style.display='none'; }
+      if(G.online)onlineOnMatchEnd();
       $('endScreen').classList.remove('hidden');
       $('controls').classList.remove('on');
     }
@@ -3311,17 +3399,24 @@
         if(G.introT>1.35){ G.phase='fight'; announce('FIGHT!',650); }
       }else if(G.phase==='fight'){
         if(!TR){ G.timer-=dt; if(G.timer<=0){ G.timer=0; timeOut(); } }
-        P.ctl=playerCtl();
-        if(TR){ drillControl(dt); drillTick(dt); }
-        else{
-          /* habit counters */
-          if(P.ctl.light&&!P.prev.light||P.ctl.heavy&&!P.prev.heavy)ai.habit.attacks++;
-          if(P.ctl.up&&!P.prev.up)ai.habit.jumps++;
-          aiControl(dt);
+        if(G.online){
+          /* LOCKSTEP: both fighters are driven by the exchanged inputs
+             for this exact tick — no AI, no local shortcut */
+          onlineFightTick(dt);
+        }else{
+          P.ctl=playerCtl();
+          if(TR){ drillControl(dt); drillTick(dt); }
+          else{
+            /* habit counters */
+            if(P.ctl.light&&!P.prev.light||P.ctl.heavy&&!P.prev.heavy)ai.habit.attacks++;
+            if(P.ctl.up&&!P.prev.up)ai.habit.jumps++;
+            aiControl(dt);
+          }
         }
         fighterUpdate(P,dt); fighterUpdate(C,dt);
         separateFighters();
         projUpdate(dt);
+        if(G.online)onlineAfterTick();
       }else if(G.phase==='roundEnd'){
         G.roundEndT+=dt;
         P.ctl=emptyCtl(); C.ctl=emptyCtl();
@@ -3356,6 +3451,10 @@
       }
       if(G.mode!=='fight'||!P||!C){ simAcc=0; render(rawDt,menuT); return; }
       if(G.paused){ simAcc=0; render(0,ts/1000); updateHUD(); return; }
+      /* LOCKSTEP GATE: a fight tick may only execute when BOTH players'
+         inputs for it have arrived. While waiting, the duel honestly
+         freezes (rendering continues) instead of guessing inputs. */
+      if(G.online&&G.phase==='fight'&&!onlineCanRun()){ simAcc=0; render(0,ts/1000); updateHUD(); onlineStallTick(); return; }
       /* feed the accumulator: hitstop consumes real time without
          producing ticks; slow-mo scales the feed rate */
       let feed=frameDt;
@@ -3365,6 +3464,10 @@
       simAcc=Math.min(simAcc+feed, SIM_STEP*TUNING.MAX_STEPS);
       let steps=0;
       while(simAcc>=SIM_STEP&&steps<TUNING.MAX_STEPS){
+        /* the lockstep gate is PER TICK, not per frame: a frame that may
+           run several ticks must stop at the first tick whose remote
+           input has not arrived, never pad it with a guessed input */
+        if(G.online&&G.phase==='fight'&&!onlineCanRun()){ simAcc=0; break; }
         tickSim(SIM_STEP); simAcc-=SIM_STEP; steps++;
         if(G.mode!=='fight'||G.phase==='over'){ simAcc=0; break; }
       }
@@ -3443,6 +3546,7 @@
     function setArena(a){
       G.arena=a;
       document.querySelectorAll('.abtn').forEach(x=>x.classList.toggle('sel',x.dataset.arena===a));
+      document.querySelectorAll('.oabtn').forEach(x=>x.classList.toggle('sel',x.dataset.oarena===a));
       const n=$('noteArena'); if(n)n.textContent=ARENA_NAMES[a];
       amb=[]; arenaFx.bolt=0; arenaFx.next=rand(2,5);
       tintLights();
@@ -3525,7 +3629,7 @@
     $('drillRetryBtn').addEventListener('click',()=>{ if(TR)startTraining(TR.id); });
     $('drillExitBtn').addEventListener('click',()=>{ exitTraining(); });
     /* ---- main menu: left-aligned entry list, each opens a real panel ---- */
-    const panelHints={panelVersus:'Choose your fighter, difficulty and arena — then BEGIN DUEL.',panelTraining:'Learn the duel — drills, parry timing, Force moves and combos.',panelSettings:'Volume, shake, controls and accessibility — applied immediately.',panelExtras:'Credits — models, art and attributions.'};
+    const panelHints={panelVersus:'Choose your fighter, difficulty and arena — then BEGIN DUEL.',panelOnline:'Duel a friend online — create a room, or join with their code.',panelTraining:'Learn the duel — drills, parry timing, Force moves and combos.',panelSettings:'Volume, shake, controls and accessibility — applied immediately.',panelExtras:'Credits — models, art and attributions.'};
     document.querySelectorAll('.mnav').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('.mnav').forEach(x=>x.classList.remove('sel'));
       b.classList.add('sel');
@@ -3615,26 +3719,28 @@
     const startDuelBtn=$('startDuelBtn');
     if(startDuelBtn)startDuelBtn.addEventListener('click',()=>{ audioInit(); $('startBtn').click(); });
     $('startBtn').addEventListener('click',()=>{
-      audioInit(); G.mode='fight'; wipeGo(); fadeOutMenuTheme();
+      audioInit(); G.online=false; G.mode='fight'; wipeGo(); fadeOutMenuTheme();
       $('menu').classList.add('hidden'); $('endScreen').classList.add('hidden');
       fitArena(); tryLockLandscape();
       startMatch();
     });
-    $('rematchBtn').addEventListener('click',()=>{ audioInit(); fadeOutMenuTheme(); $('endScreen').classList.add('hidden'); fitArena(); startMatch(); });
+    $('rematchBtn').addEventListener('click',()=>{ audioInit(); if(G.online){ onlineRematchVote(); return; } fadeOutMenuTheme(); $('endScreen').classList.add('hidden'); fitArena(); startMatch(); });
         /* STAGE 4: ONE return-to-menu path — every overlay closed, every
        input cleared, hum off, theme back, rotation dropped */
     function toMenu(){
+      if(G.online){ onlineDeclineMatch(); return; }
       G.paused=false; TR=null; clearAllInputs();
       $('drillHud').classList.remove('on'); $('drillScreen').classList.add('hidden');
       $('pauseScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
+      $('endMenuBtn').textContent='MENU'; const _cbR=$('changeBtn'); if(_cbR)_cbR.style.display=''; $('rematchBtn').textContent='REMATCH';
       $('hud').classList.remove('on'); $('controls').classList.remove('on'); $('topBtns').classList.remove('on');
       const co=$('callout'); if(co)co.classList.remove('on');
       G.mode='menu'; G.phase='idle'; fitArena(); setHum(false);
       $('menu').classList.remove('hidden'); wipeGo(); playMenuTheme();
     }
-    $('changeBtn').addEventListener('click',()=>{ toMenu(); });
-    $('endMenuBtn').addEventListener('click',()=>{ toMenu(); });
-    $('pauseBtn').addEventListener('click',()=>{ if(G.mode==='fight'&&G.phase!=='over'){ G.paused=true; clearAllInputs(); $('pauseScreen').classList.remove('hidden'); setHum(false); } });
+    $('changeBtn').addEventListener('click',()=>{ if(G.online){ onlineDeclineMatch(); return; } toMenu(); });
+    $('endMenuBtn').addEventListener('click',()=>{ if(G.online){ onlineDeclineMatch(); return; } toMenu(); });
+    $('pauseBtn').addEventListener('click',()=>{ if(G.online)return; /* pause is disabled online — leaving is the forfeit path */ if(G.mode==='fight'&&G.phase!=='over'){ G.paused=true; clearAllInputs(); $('pauseScreen').classList.remove('hidden'); setHum(false); } });
     $('resumeBtn').addEventListener('click',()=>{ G.paused=false; $('pauseScreen').classList.add('hidden'); setHum(true); });
     $('restartBtn').addEventListener('click',()=>{ G.paused=false; $('pauseScreen').classList.add('hidden'); fitArena(); startMatch(); });
     $('quitBtn').addEventListener('click',()=>{ toMenu(); });
@@ -3675,6 +3781,394 @@
       const mh0=$('menuHint');
       if(mh0){ mh0.textContent='LOADING THE DUEL…'; window.addEventListener('load',()=>{ const sel=document.querySelector('.mnav.sel'); if(sel)mh0.textContent=panelHints[sel.dataset.panel]||''; }); }
     }
+    /* ================= ONLINE DUEL — DETERMINISTIC LOCKSTEP =================
+       Transport: the user's existing always-on relay (the Kings & Dice /
+       The Dale server, wss). Dueler rooms live on its /dale endpoint:
+       the server creates/joins rooms by code and relays dale:state
+       messages to the other room members untouched — verified live
+       against the real server: extra fields pass through verbatim, the
+       sender gets no echo, peer-joined / peer-left are signalled, and a
+       room code the server has never seen simply creates that room.
+       Dueler payloads ride INSIDE dale:state as a `dueler` field, and
+       Dueler room codes are 6 characters starting with D — The Dale's
+       own codes are 5 characters, so the two namespaces can never
+       collide. No peer-to-peer anywhere: it already failed for this
+       user on mobile carriers.
+
+       Netcode: both clients run the IDENTICAL fixed-60Hz sim. The host
+       is always sim slot P (P1, spawns left), the guest always slot C
+       (P2, spawns right) on BOTH clients — one canonical orientation,
+       so the two sims are identical rather than mirrored. Each client
+       samples its own fighter's input, stamps it OF.delay ticks ahead
+       and sends it; a fight tick executes only when BOTH inputs for it
+       exist (the render loop stalls honestly rather than guessing).
+       DETERMINISM AUDIT: the combat core (fighterUpdate, resolveStrike,
+       resolveClash, resolvePull/Spec/Alt, projUpdate, separateFighters)
+       contains no Math.random and no wall-clock reads at all — clash
+       resolution is rule-based and the choke is a fixed timer.
+       Math.random survives only in (a) the CPU AI, which never runs
+       online, (b) training drills, never online, and (c) cosmetic
+       particles / audio noise, which never feed sim state. The match
+       seed (host-generated, agreed in the start message) is mixed into
+       every state hash. Hashes are exchanged every 30 fight ticks; a
+       mismatch is a DESYNC — the match stops and says so on both
+       phones. There is no fake recovery. */
+    const RELAY_URL=window.__DUELER_RELAY||'wss://kings-and-dice-server.onrender.com/dale';
+    const NET={ws:null,id:null,room:null,host:false,myName:'PLAYER',oppId:null,oppName:null,oppChar:null,oppReady:false,
+      myChar:'vader',myReady:false,status:'off',rtt:0,rematchMe:false,rematchOpp:false,
+      graceUntil:0,graceReason:'',seed:0,desynced:false};
+    const OF={tick:0,delay:3,localBuf:new Map(),remoteBuf:new Map(),hashes:new Map(),rHashes:new Map(),
+      sentUpTo:2,lastLocalPacked:0,pendingDelay:null,stallSince:0};
+    const DIR_CODE={left:1,overhead:2,right:3};
+    const CODE_DIR={1:'left',2:'overhead',3:'right'};
+    /* one ctl <-> one small integer: 12 input bits + 2 direction bits +
+       signed analog moveX in 8 bits (quantised at sample time, so the
+       exact value the local sim executes is the value that was sent) */
+    function packCtl(c){
+      let b=0;
+      if(c.left)b|=1; if(c.right)b|=2; if(c.up)b|=4; if(c.down)b|=8;
+      if(c.light)b|=16; if(c.heavy)b|=32; if(c.block)b|=64; if(c.feint)b|=128;
+      if(c.dash)b|=256; if(c.pull)b|=512; if(c.special)b|=1024; if(c.alt)b|=2048;
+      const dc=c.dir?DIR_CODE[c.dir]||0:0;
+      const mx=Math.round(clamp(typeof c.moveX==='number'?c.moveX:0,-1,1)*127)+128;
+      return b|(dc<<12)|(mx<<14);
+    }
+    function unpackCtl(n){
+      n=n|0;
+      return {left:n&1?1:0,right:n&2?1:0,up:n&4?1:0,down:n&8?1:0,light:n&16?1:0,heavy:n&32?1:0,
+        block:n&64?1:0,feint:n&128?1:0,dash:n&256?1:0,pull:n&512?1:0,special:n&1024?1:0,alt:n&2048?1:0,
+        dir:CODE_DIR[(n>>12)&3]||null,moveX:(((n>>14)&255)-128)/127};
+    }
+    /* FNV-1a over the canonical sim state (quantised): positions,
+       velocities, bars, states, attack clocks, cooldowns, round score,
+       timer and the agreed seed. Identical inputs => identical hash. */
+    function stateHash(upto){
+      let h=2166136261>>>0;
+      const mix=(v)=>{ h^=(v|0); h=Math.imul(h,16777619); };
+      const SS=['idle','walk','crouch','dash','jump','attack','cast','hitstun','hitstun_air','stagger','guardbreak','knockdown','defeated','getup','choked','pulled'];
+      const F=(f)=>{ if(!f){ mix(-1); return; }
+        mix(Math.round(f.x*4)); mix(Math.round(f.y*4)); mix(Math.round(f.vx*2)); mix(Math.round(f.vy*2));
+        mix(f.hp*8); mix(Math.round(f.posture*2)); mix(Math.round(f.force*2)); mix(f.facing);
+        mix(SS.indexOf(f.state)); mix(Math.round(f.stateT*60)); mix(f.dirSel==='left'?1:f.dirSel==='overhead'?2:3);
+        mix(f.blocking?1:0); mix(f.combo); mix(f.atk?(f.atk.type.length*7+f.atk.type.charCodeAt(0)):0); mix(f.atk?Math.round(f.atk.t*60):-1);
+        mix(Math.round(f.pullCd*60)); mix(Math.round(f.specCd*60)); mix(Math.round(f.altCd*60)); mix(Math.round(f.dodgeCd*60));
+      };
+      mix(upto); mix(NET.seed|0); F(P); F(C); mix(G.winsP); mix(G.winsC); mix(Math.round(G.timer*60)); mix(projectiles.length);
+      if(projectiles.length)mix(Math.round(projectiles[0].x*2));
+      return (h>>>0).toString(36);
+    }
+    function netSend(o){
+      if(!NET.ws||NET.ws.readyState!==1)return false;
+      try{ NET.ws.send(JSON.stringify({type:'dale:state',dueler:o})); return true; }catch(e){ return false; }
+    }
+    function onlineResetClocks(){
+      OF.tick=0; OF.localBuf.clear(); OF.remoteBuf.clear(); OF.hashes.clear(); OF.rHashes.clear();
+      OF.sentUpTo=OF.delay-1; OF.lastLocalPacked=packCtl(emptyCtl()); OF.pendingDelay=null; OF.stallSince=0;
+      NET.desynced=false; NET.graceUntil=0;
+    }
+    /* sample the LOCAL fighter's input once per executed fight tick and
+       schedule it OF.delay ticks ahead. A guest drives sim slot C, so
+       P/C are swapped around playerCtl() — that function was written
+       for "P is me" (stick-block reads my facing, my rival's state) and
+       the swap makes it read the guest's fighter as "me" exactly. */
+    function onlineSample(){
+      let ctl;
+      if(G.localSlot==='C'){ const _p=P,_c=C; P=_c; C=_p; ctl=playerCtl(); P=_p; C=_c; }
+      else ctl=playerCtl();
+      const packed=packCtl(ctl);
+      const target=OF.tick+OF.delay;
+      if(!OF.localBuf.has(target))OF.localBuf.set(target,packed);
+      OF.lastLocalPacked=packed;
+      const batch=[];
+      for(let k=OF.sentUpTo+1;k<=target;k++){
+        if(!OF.localBuf.has(k))OF.localBuf.set(k,OF.lastLocalPacked); /* delay grew: repeat last input, never a gap */
+        batch.push(OF.localBuf.get(k));
+      }
+      if(batch.length){ netSend({k:'in',f:OF.sentUpTo+1,i:batch}); OF.sentUpTo=target; }
+    }
+    function onlineCanRun(){
+      if(NET.desynced)return false;
+      const t=OF.tick;
+      if(t<OF.delay)return true; /* the opening delay ticks are empty inputs on both sides, by agreement */
+      return OF.localBuf.has(t)&&OF.remoteBuf.has(t);
+    }
+    function onlineFightTick(dt){
+      if(OF.pendingDelay&&OF.tick>=OF.pendingDelay.at){ OF.delay=OF.pendingDelay.d; OF.pendingDelay=null; }
+      onlineSample();
+      const t=OF.tick, empty=packCtl(emptyCtl());
+      const lp=t<OF.delay?empty:OF.localBuf.get(t);
+      const rp=t<OF.delay?empty:OF.remoteBuf.get(t);
+      const lc=unpackCtl(lp!=null?lp:empty), rc=unpackCtl(rp!=null?rp:empty);
+      if(G.localSlot==='P'){ P.ctl=lc; C.ctl=rc; } else { C.ctl=lc; P.ctl=rc; }
+    }
+    function onlineAfterTick(){
+      OF.tick++;
+      if(OF.stallSince){ OF.stallSince=0; netBannerHide(); }
+      if(OF.tick%30===0){
+        const h=stateHash(OF.tick); OF.hashes.set(OF.tick,h); netSend({k:'hash',t:OF.tick,h:h});
+        const rh=OF.rHashes.get(OF.tick);
+        if(rh!=null&&rh!==h)onlineDesync();
+      }
+      if(OF.tick%240===0){
+        for(const k of OF.localBuf.keys())if(k<OF.tick-120)OF.localBuf.delete(k);
+        for(const k of OF.remoteBuf.keys())if(k<OF.tick-120)OF.remoteBuf.delete(k);
+        for(const k of OF.hashes.keys())if(k<OF.tick-120)OF.hashes.delete(k);
+        for(const k of OF.rHashes.keys())if(k<OF.tick-120)OF.rHashes.delete(k);
+      }
+      onlinePingHud();
+    }
+    function onlineStallTick(){
+      const now=performance.now();
+      if(!OF.stallSince)OF.stallSince=now;
+      if(NET.graceUntil){
+        const left=Math.max(0,Math.ceil((NET.graceUntil-now)/1000));
+        netBanner(NET.graceReason+' — FORFEIT IN '+left+'s',true);
+        if(now>=NET.graceUntil){ NET.graceUntil=0; onlineForfeit(); }
+      }else if(now-OF.stallSince>350){
+        netBanner('WAITING FOR OPPONENT…',false);
+      }
+      onlinePingHud();
+    }
+    function netBanner(txt,warn){ const b=$('netBanner'); if(!b)return; b.textContent=txt; b.classList.add('on'); b.classList.toggle('warn',!!warn); }
+    function netBannerHide(){ const b=$('netBanner'); if(b)b.classList.remove('on'); }
+    function onlinePingHud(){
+      const el=$('pingHud'); if(!el)return;
+      if(G.online&&G.mode==='fight'){ el.classList.add('on'); el.innerHTML='PING <b>'+(NET.rtt?Math.round(NET.rtt)+' MS':'—')+'</b> · DELAY '+OF.delay+'F'; }
+      else el.classList.remove('on');
+    }
+    function onlineDesync(){
+      if(NET.desynced)return; NET.desynced=true;
+      netSend({k:'desync'});
+      netBannerHide();
+      const ds=$('desyncScreen'); if(ds)ds.classList.remove('hidden');
+      setHum(false);
+    }
+    function onlineForfeit(){
+      if(!G.online||G.phase==='over')return;
+      netBannerHide();
+      if(G.localSlot==='P')G.winsP=2; else G.winsC=2;
+      G.forfeitWin=true;
+      endMatch();
+    }
+    function onlinePeerGone(reason){
+      if(G.online&&G.mode==='fight'&&G.phase!=='over'&&!NET.desynced){
+        if(!NET.graceUntil){ NET.graceUntil=performance.now()+5000; NET.graceReason=reason||'OPPONENT DISCONNECTED'; }
+      }else if(NET.room){
+        NET.oppId=null; NET.oppName=null; NET.oppChar=null; NET.oppReady=false; NET.myReady=false;
+        onlineUi('Opponent left the room.');
+      }
+    }
+    function onlineStartMatch(cfg){
+      G.online=true; G.localSlot=NET.host?'P':'C';
+      G.pChar=(cfg.pChar==='obi'?'obi':'vader'); G.cChar=(cfg.cChar==='obi'?'obi':'vader');
+      G.oppChar=NET.host?G.cChar:G.pChar;
+      NET.seed=cfg.seed|0; G.seed=cfg.seed|0;
+      OF.delay=cfg.delay||3;
+      if(cfg.arena&&cfg.arena!==G.arena)setArena(cfg.arena);
+      G.forfeitWin=false; NET.rematchMe=false; NET.rematchOpp=false;
+      onlineResetClocks();
+      audioInit(); G.mode='fight'; wipeGo(); fadeOutMenuTheme();
+      $('menu').classList.add('hidden'); $('endScreen').classList.add('hidden');
+      const ds=$('desyncScreen'); if(ds)ds.classList.add('hidden');
+      netBannerHide();
+      fitArena(); tryLockLandscape();
+      startMatch();
+      onlinePingHud();
+    }
+    function onlineOnMatchEnd(){
+      NET.rematchMe=false; NET.rematchOpp=false;
+      $('rematchBtn').textContent='REMATCH';
+      $('endMenuBtn').textContent='BACK TO LOBBY';
+      const cb=$('changeBtn'); if(cb)cb.style.display='none';
+      const ph=$('pingHud'); if(ph)ph.classList.remove('on');
+    }
+    function onlineRematchVote(){
+      if(NET.rematchMe)return; NET.rematchMe=true;
+      netSend({k:'rematch'});
+      $('rematchBtn').textContent='WAITING FOR OPPONENT…';
+      const en=$('endOnlineNote'); if(en){ en.style.display='block'; en.textContent='Rematch requested — waiting for your opponent to accept.'; }
+      onlineTryRematchStart();
+    }
+    function onlineTryRematchStart(){
+      if(NET.rematchMe&&NET.rematchOpp&&NET.host){
+        const cfg={k:'start',pChar:G.pChar,cChar:G.cChar,arena:G.arena,seed:(Math.random()*2147483647)|0,delay:OF.delay};
+        netSend(cfg); onlineStartMatch(cfg);
+      }
+    }
+    function onlineDeclineMatch(){
+      netSend({k:'bye'});
+      onlineToLobby('You left the match — back in the lobby.');
+    }
+    function onlineToLobby(note){
+      G.online=false; G.forfeitWin=false; NET.desynced=false; NET.graceUntil=0;
+      NET.rematchMe=false; NET.rematchOpp=false; NET.myReady=false; NET.oppReady=false;
+      G.paused=false; TR=null; clearAllInputs();
+      const ds=$('desyncScreen'); if(ds)ds.classList.add('hidden');
+      $('pauseScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
+      $('hud').classList.remove('on'); $('controls').classList.remove('on'); $('topBtns').classList.remove('on');
+      const ph=$('pingHud'); if(ph)ph.classList.remove('on');
+      netBannerHide();
+      $('endMenuBtn').textContent='MENU'; const cb=$('changeBtn'); if(cb)cb.style.display=''; $('rematchBtn').textContent='REMATCH';
+      G.mode='menu'; G.phase='idle'; fitArena(); setHum(false);
+      $('menu').classList.remove('hidden'); wipeGo(); playMenuTheme();
+      const nav=document.querySelector('.mnav[data-panel="panelOnline"]'); if(nav)nav.click();
+      onlineUi(note||'Back in the lobby — ready up to duel again.');
+    }
+    function onlineTryStart(){
+      if(!NET.host||!NET.oppId||!NET.myReady||!NET.oppReady||G.online)return;
+      const cfg={k:'start',pChar:NET.myChar,cChar:NET.oppChar||'obi',arena:G.arena,seed:(Math.random()*2147483647)|0,delay:OF.delay};
+      netSend(cfg); onlineStartMatch(cfg);
+    }
+    function onlineAdaptDelay(){
+      if(!NET.host||!NET.rtt)return;
+      const want=Math.max(2,Math.min(5,Math.ceil((NET.rtt/2)/16.7)+1));
+      if(want===OF.delay)return;
+      if(G.online&&G.mode==='fight'&&G.phase==='fight'){
+        const at=OF.tick+45; OF.pendingDelay={d:want,at:at}; netSend({k:'delay',d:want,at:at});
+      }else if(!G.online){ OF.delay=want; }
+    }
+    let onlinePingTimer=null;
+    function onlinePingStart(){
+      if(onlinePingTimer)clearInterval(onlinePingTimer);
+      onlinePingTimer=setInterval(()=>{ if(NET.ws&&NET.ws.readyState===1)netSend({k:'ping',t:performance.now()}); },2000);
+    }
+    const escHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    function onlineUi(msg){
+      const st=$('onlineStatus'); if(!st)return;
+      let s='';
+      if(NET.status==='off')s='Server: not connected.';
+      else if(NET.status==='connecting')s='Server: connecting…';
+      else if(NET.status==='error')s='Server: <b>can&rsquo;t reach the server</b> — check your connection. Every local mode is unaffected.';
+      else s='Server: <b>connected</b>'+(NET.rtt?' · ping '+Math.round(NET.rtt)+' ms':'');
+      if(msg)s+='<br>'+msg;
+      st.innerHTML=s;
+      const home=$('onlineHome'), lob=$('onlineLobby');
+      if(!home||!lob)return;
+      if(NET.room){
+        home.style.display='none'; lob.style.display='block';
+        $('onlineCodeTxt').textContent=NET.room;
+        $('onlineLobbySub').textContent=NET.host?'Share this code with your opponent. You are P1 (left plate).':'You joined as P2 (right plate). The host picks the arena.';
+        const pl=$('peerLine');
+        if(NET.oppId){
+          pl.innerHTML='Opponent: <b>'+escHtml(NET.oppName||'PLAYER')+'</b> · '+(NET.oppChar?CHARS[NET.oppChar].name:'choosing a fighter…')+' · '+(NET.oppReady?'<span class="rdy">READY</span>':'<span class="notrdy">NOT READY</span>')+'<br>You: '+CHARS[NET.myChar].name+' · '+(NET.myReady?'<span class="rdy">READY</span>':'<span class="notrdy">NOT READY</span>');
+        }else pl.textContent='Waiting for an opponent to join with this code…';
+        const rb=$('readyBtn');
+        rb.disabled=!(NET.oppId&&NET.oppChar);
+        rb.textContent=NET.myReady?'READY ✓ — TAP TO UNREADY':'READY';
+      }else{ home.style.display='block'; lob.style.display='none'; }
+    }
+    function onlineMakeCode(){
+      const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s='D';
+      for(let i=0;i<5;i++)s+=A[(Math.random()*A.length)|0];
+      return s;
+    }
+    function onlineConnect(roomCode){
+      onlineDisconnect(true);
+      NET.status='connecting'; onlineUi(roomCode&&!NET.host?'Joining room '+escHtml(roomCode)+'…':'Creating your room…');
+      NET.myName=((($('onlineName')||{}).value)||'PLAYER').trim().slice(0,16)||'PLAYER';
+      const url=RELAY_URL+'?name='+encodeURIComponent(NET.myName)+(roomCode?'&room='+encodeURIComponent(roomCode):'');
+      let ws;
+      try{ ws=new WebSocket(url); }catch(e){ NET.status='error'; onlineUi(); return; }
+      NET.ws=ws;
+      let opened=false;
+      const failT=setTimeout(()=>{ if(!opened&&NET.ws===ws){ NET.status='error'; try{ws.close();}catch(e){} onlineUi('The server did not answer in time — it may be waking up. Try again in a few seconds.'); } },14000);
+      ws.onopen=()=>{ opened=true; clearTimeout(failT); NET.status='connected'; };
+      ws.onmessage=(ev)=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } if(!m||typeof m.type!=='string')return; onlineOnRelay(m); };
+      ws.onclose=()=>{
+        clearTimeout(failT);
+        if(NET.ws!==ws)return; /* a newer socket already replaced this one */
+        NET.ws=null;
+        const wasRoom=!!NET.room;
+        NET.room=null; NET.id=null;
+        if(G.online&&G.mode==='fight'){ onlinePeerGone('CONNECTION TO THE SERVER LOST'); }
+        else if(wasRoom){ NET.status='off'; NET.oppId=null; NET.oppChar=null; onlineUi('Connection closed — you are out of the room.'); }
+        else if(NET.status!=='error'){ NET.status='error'; onlineUi(); }
+      };
+      ws.onerror=()=>{ try{ ws.close(); }catch(e){} };
+    }
+    function onlineDisconnect(silent){
+      const ws=NET.ws; NET.ws=null;
+      if(ws){ try{ ws.send(JSON.stringify({type:'dale:leave'})); }catch(e){} try{ ws.close(); }catch(e){} }
+      NET.room=null; NET.id=null; NET.oppId=null; NET.oppChar=null; NET.oppReady=false; NET.myReady=false;
+      if(!silent){ NET.status='off'; onlineUi('Left the room.'); }
+    }
+    function onlineOnRelay(m){
+      if(m.type==='dale:welcome'){
+        const peers=m.peers||[];
+        if(NET.host&&peers.length>=1){ /* our fresh code was already taken — pick another and retry once */
+          onlineDisconnect(true); NET.host=true; onlineConnect(onlineMakeCode()); return;
+        }
+        if(peers.length>=2){ onlineDisconnect(true); NET.status='off'; onlineUi('That room already has a duel in progress — check the code, or create your own room.'); return; }
+        NET.id=m.id; NET.room=m.room; NET.status='connected';
+        if(peers.length===1){ NET.oppId=peers[0].id; NET.oppName=peers[0].name||'PLAYER'; }
+        onlineUi(NET.host?'Room created — share the code below.':'Joined room '+escHtml(NET.room)+'.');
+        netSend({k:'pick',char:NET.myChar,name:NET.myName});
+        if(NET.myReady)netSend({k:'ready',ready:true});
+        onlinePingStart();
+        return;
+      }
+      if(m.type==='dale:peer-joined'){
+        if(!NET.oppId){
+          NET.oppId=m.id; NET.oppName=m.name||'PLAYER'; NET.oppReady=false;
+          netSend({k:'pick',char:NET.myChar,name:NET.myName});
+          if(NET.myReady)netSend({k:'ready',ready:true});
+          onlineUi('Opponent joined the room.');
+        }
+        return;
+      }
+      if(m.type==='dale:peer-left'){
+        if(m.id===NET.oppId)onlinePeerGone('OPPONENT DISCONNECTED');
+        return;
+      }
+      if(m.type==='dale:error'){ onlineUi('Server said: '+escHtml(m.code||'error')); return; }
+      if(m.type!=='dale:state'||!m.dueler)return;
+      if(NET.oppId&&m.from&&m.from!==NET.oppId)return; /* paired opponent only — extra room members are ignored */
+      const d=m.dueler;
+      switch(d.k){
+        case 'pick': NET.oppChar=(d.char==='obi'?'obi':'vader'); if(d.name)NET.oppName=String(d.name).slice(0,16); onlineUi(); break;
+        case 'ready': NET.oppReady=!!d.ready; onlineUi(); onlineTryStart(); break;
+        case 'start': if(!NET.host&&!(G.online&&G.mode==='fight'&&G.phase!=='over'))onlineStartMatch(d); break;
+        case 'in': if(G.online){ const arr=d.i||[]; for(let j=0;j<arr.length;j++)OF.remoteBuf.set(d.f+j,arr[j]); } break;
+        case 'hash': if(G.online){ OF.rHashes.set(d.t,d.h); const mine=OF.hashes.get(d.t); if(mine!=null&&mine!==d.h)onlineDesync(); } break;
+        case 'delay': if(G.online&&!NET.host)OF.pendingDelay={d:d.d,at:d.at}; break;
+        case 'ping': netSend({k:'pong',t:d.t}); break;
+        case 'pong': { const r=performance.now()-d.t; if(r>=0&&r<10000){ NET.rtt=NET.rtt?NET.rtt*0.6+r*0.4:r; onlineAdaptDelay(); if(!G.online)onlineUi(); } break; }
+        case 'rematch': NET.rematchOpp=true; if(G.online&&G.phase==='over'){ const en=$('endOnlineNote'); if(en){ en.style.display='block'; en.textContent='Your opponent wants a rematch — tap REMATCH to accept, or BACK TO LOBBY to decline.'; } onlineTryRematchStart(); } break;
+        case 'bye': if(G.online){ onlineToLobby('Your opponent left the match — back in the lobby.'); } else { NET.oppReady=false; NET.myReady=false; onlineUi('Opponent left.'); } break;
+        case 'desync': if(G.online&&!NET.desynced)onlineDesync(); break;
+      }
+    }
+    /* ---- online panel wiring ---- */
+    document.querySelectorAll('.ocbtn').forEach(b=>b.addEventListener('click',()=>{
+      audioInit(); NET.myChar=b.dataset.ochar;
+      document.querySelectorAll('.ocbtn').forEach(x=>x.classList.toggle('sel',x===b));
+      if(NET.room)netSend({k:'pick',char:NET.myChar,name:NET.myName});
+      onlineUi();
+    }));
+    document.querySelectorAll('.oabtn').forEach(b=>b.addEventListener('click',()=>{ audioInit(); setArena(b.dataset.oarena); }));
+    const createBtn=$('createRoomBtn');
+    if(createBtn)createBtn.addEventListener('click',()=>{ audioInit(); NET.host=true; onlineConnect(onlineMakeCode()); });
+    const joinBtn=$('joinRoomBtn');
+    if(joinBtn)joinBtn.addEventListener('click',()=>{
+      audioInit();
+      const code=(($('joinCode')||{}).value||'').trim().toUpperCase();
+      if(code.length<4){ onlineUi('Type the room code your opponent gave you first.'); return; }
+      NET.host=false; onlineConnect(code);
+    });
+    const rdyBtn=$('readyBtn');
+    if(rdyBtn)rdyBtn.addEventListener('click',()=>{
+      audioInit(); NET.myReady=!NET.myReady;
+      netSend({k:'ready',ready:NET.myReady});
+      onlineUi(); onlineTryStart();
+    });
+    const leaveBtn=$('leaveRoomBtn');
+    if(leaveBtn)leaveBtn.addEventListener('click',()=>{ audioInit(); onlineDisconnect(false); });
+    const dsBtn=$('desyncMenuBtn');
+    if(dsBtn)dsBtn.addEventListener('click',()=>{ audioInit(); const ds=$('desyncScreen'); if(ds)ds.classList.add('hidden'); onlineToLobby('The desync ended that match — back in the lobby.'); });
+    const nameInput=$('onlineName');
+    if(nameInput)nameInput.addEventListener('change',()=>{ NET.myName=(nameInput.value||'PLAYER').trim().slice(0,16)||'PLAYER'; });
+    onlineUi();
+
     /* dev/test hook: lets the build harness drive the REAL engine
        (scripted AI fairness checks, drill flows, control tests).
        Inert in normal play. */
@@ -3686,7 +4180,7 @@
       /* STAGE 5 harness getters: pose sampler (saber-animation
          continuity checks), 3D-ownership (fallback checks) and live
          effect/quality counters (performance + leak checks) */
-      poseFor:poseFor,threeOwns:threeOwns,get stick(){return stick;},get particles(){return particles;},get floats(){return floats;},get projectiles(){return projectiles;},get qLevel(){return qLevel;},get fpsEMA(){return fpsEMA;},get CAM(){return CAM;},get glInfo(){ const gl=document.getElementById('gl'); return gl?{bufW:gl.width,bufH:gl.height,clientW:gl.clientWidth,clientH:gl.clientHeight,pixelRatio:renderer3?renderer3.getPixelRatio():null}:null; }};
+      poseFor:poseFor,threeOwns:threeOwns,get stick(){return stick;},get particles(){return particles;},get floats(){return floats;},get projectiles(){return projectiles;},get qLevel(){return qLevel;},get fpsEMA(){return fpsEMA;},get CAM(){return CAM;},get glInfo(){ const gl=document.getElementById('gl'); return gl?{bufW:gl.width,bufH:gl.height,clientW:gl.clientWidth,clientH:gl.clientHeight,pixelRatio:renderer3?renderer3.getPixelRatio():null}:null; },get NET(){return NET;},get OF(){return OF;},stateHash:stateHash,packCtl:packCtl,unpackCtl:unpackCtl,onlineSample:onlineSample,onlineStartMatch:onlineStartMatch,selfF:selfF,oppF:oppF,SPAWN:{l:280,r:680}};
     </script>
   </body>
 </html>
