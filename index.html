@@ -2088,9 +2088,14 @@
         const gd=f.blockLow?'low':f.dirSel;
         ang=gd==='left'?1.85:gd==='overhead'?-2.65:gd==='low'?-0.65:-1.5; lean=0.05;
       }
-      else if(st==='cast'||f._choking){ ang=0.9; lean=0.12; lunge=0.05; }
-      else if(st==='hitstun'||st==='hitstun_air'||st==='stagger'||st==='guardbreak'){ ang=0.7; lean=-0.25; }
-      else if(st==='pulled'){ ang=1.2; lean=-0.15; }
+      /* grip pass: outside attacks the blade stays in a natural guard
+         carry — angled up/forward in the fist. The old cast/hitstun/
+         pulled angles (0.9 / 0.7 / 1.2) stabbed the blade down at the
+         floor while the arm hung or reached, so the saber looked held
+         by the wrong end. */
+      else if(st==='cast'||f._choking){ ang=-0.35; lean=0.12; lunge=0.05; }
+      else if(st==='hitstun'||st==='hitstun_air'||st==='stagger'||st==='guardbreak'){ ang=0.3; lean=-0.25; }
+      else if(st==='pulled'){ ang=0.5; lean=-0.15; }
       else if(st==='knockdown'||st==='defeated'){ fall=1; ang=1.2; }
       else if(st==='attack'&&f.atk){
         /* STAGE 2: the arc is the attack's DIRECTION — wind-up pose
@@ -2261,7 +2266,11 @@
       if(!obiBones)return;
       const B=obiBones, s=f.facing;
       for(let i=0;i<B.all.length;i++)B.all[i].bone.quaternion.copy(B.all[i].rest);
-      const shW=s*clamp((-pose.ang+1.15)*0.85,-2.4,2.4);
+      /* grip pass: clamp stops at ±2.05 rad — at the old ±2.4 the
+         overhead poses rotated the arm fully up behind the head, so
+         the blade looked like it grew out of his skull instead of
+         being gripped above it */
+      const shW=s*clamp((-pose.ang+1.15)*0.85,-2.05,2.05);
       let lShW=s*-0.25, lElW=s*0.2;
       if(f.state==='cast'||f._choking){ lShW=s*1.35; lElW=s*0.1; }
       poseBoneZ(B.sp1,-s*pose.lean*0.35);
@@ -2305,7 +2314,10 @@
         vaderArm.rotation.z=th+Math.PI/2;
         vaderSaber.visible=f.state!=='choked';
         vaderSaber.position.set(.03+Math.cos(th)*0.54, 1.5+Math.sin(th)*0.54, .26);
-        vaderSaber.rotation.z=-pose.ang-Math.PI/2;
+        /* grip pass: blade aligned with the ARM axis (th), not the raw
+           pose angle — the old -pose.ang rotation left a permanent
+           ~20° wrist kink between Vader's forearm and his blade */
+        vaderSaber.rotation.z=th-Math.PI/2;
         if(f.counterT>0){ const p=1+Math.sin(t*14)*0.12; vaderSaber.scale.set(p,1,p); } else vaderSaber.scale.set(1,1,1);
       }
     }
@@ -2643,8 +2655,8 @@
         else if(gd==='low'){ ang=-0.65; handY=hipY+2; }
         else { ang=-1.5; handY=hipY-24; }
       }
-      else if(st==='cast'||f._choking){ handX=26; handY=hipY-26; ang=0.9; }
-      else if(st==='hitstun'||st==='hitstun_air'||st==='stagger'||st==='guardbreak'){ handX=8; handY=hipY-8; ang=0.7; }
+      else if(st==='cast'||f._choking){ handX=26; handY=hipY-26; ang=-0.35; } /* grip pass: matches poseFor — blade stays in guard carry while casting */
+      else if(st==='hitstun'||st==='hitstun_air'||st==='stagger'||st==='guardbreak'){ handX=8; handY=hipY-8; ang=0.3; }
       else if(st==='attack'&&f.atk){
         /* STAGE 2: same directional arcs as the GLB layer (swingPose) */
         const a=f.atk,d=a.def,tt=a.t;
@@ -2660,7 +2672,7 @@
         if(tt>d.startup+d.active)ang=lerp(sp.to,-0.55,easeOut(recP));
         handX=22; handY=hipY+sp.handY; trail=swingP>=1?(recP<0.6?1-recP:0):swingP;
       }
-      else if(st==='pulled'||st==='knockdown'||st==='defeated'){ ang=1.2; handX=10; handY=hipY-4; }
+      else if(st==='pulled'||st==='knockdown'||st==='defeated'){ ang=0.5; handX=10; handY=hipY-4; }
       if(f._duel){ /* menu face-off pose (drawn fallback): blade raised, angled in */
         handX=22; handY=hipY-24; ang=f.char==='vader'?-1.15:-0.8; showBlade=true; trail=0;
       }
@@ -2682,7 +2694,11 @@
           g.save(); g.globalAlpha=.28*(1-Math.abs(trail-.5)); g.fillStyle=f.cfg.blade;
           g.beginPath(); g.moveTo(bx,by); g.arc(bx,by,bl,ang-1.5,ang); g.closePath(); g.fill(); g.restore();
         }
-        g.fillStyle='#888'; g.fillRect(handX-3,handY-3,16,5);
+        /* grip pass: the hilt is drawn IN the fist, rotated to the
+           blade angle (pommel behind the hand, emitter at the blade
+           base) — it used to be a fixed horizontal bar, so any blade
+           angle but level read as held wrong */
+        g.save(); g.translate(handX,handY); g.rotate(ang); g.fillStyle='#888'; g.fillRect(-6,-2.5,20,5); g.restore();
         blade(bx,by,tx,ty,f.cfg.blade,4.5);
         if(f.counterT>0){ g.save(); g.globalAlpha=.5+.4*Math.sin(t*14); g.strokeStyle='#59c2ff'; g.lineWidth=2; g.beginPath(); g.arc(0,hipY-20,44,0,TAU); g.stroke(); g.restore(); }
         if(f.blocking&&f.holdT<PARRY_WINDOW+.05){ g.save(); g.globalAlpha=.65; g.strokeStyle='#bfe6ff'; g.lineWidth=2.5; g.beginPath(); g.arc(18,hipY-22,30,-1.2,1.2); g.stroke(); g.restore(); }
