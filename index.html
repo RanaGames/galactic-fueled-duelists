@@ -3043,8 +3043,21 @@
       else if(G.arena==='fortress'){ lights3.rim.color.setHex(0xff8a3c); lights3.rim.intensity=.65; lights3.key.color.setHex(0xe8f0ff); lights3.hemi.groundColor.setHex(0x11141c); }
       else { lights3.rim.color.setHex(0xff6a35); lights3.rim.intensity=.8; lights3.key.color.setHex(0xffffff); lights3.hemi.groundColor.setHex(0x3a170c); }
     }catch(e){} }
-    const OBI_BASE_ROT=-Math.PI/2; /* FACING FIX (user screenshot, 2026-11-15): this Mixamo rig's forward axis is -Z, not +Z — at +PI/2 he fought BACKWARDS (face turned from his opponent in every pose). -PI/2 turns his true forward to +X when facing right; the side flip (+PI when facing left) composes on top, and the world-space pose/socket math is unaffected. Verified in rotated-stage phone captures, both sides. */
-    const VADER_BASE_ROT=-Math.PI/2; /* Rigify/Blender export faces -Z in three.js space; -PI/2 turns him to +X */
+    /* FACING — MEASURED FROM THE RIGS, NOT ASSUMED (2026-11-15, second
+       correction): bind-pose geometry in the shipped GLBs proves BOTH
+       rigs face +Z in three.js space — Obi-Wan: LeftFoot z=-0.108 ->
+       LeftToeBase z=+0.094 (toes point +Z); Vader: ORG-foot.L z=-0.053
+       -> ORG-toe.L z=+0.040, forehead bones at z=+0.031 (face front
+       +Z). Camera sits at +Z, so a fighter facing RIGHT (+X) needs
+       rotation.y=+PI/2 (R_y(+90deg) maps +Z -> +X). The previous
+       -PI/2 for both mapped their forward to -X: BOTH fighters fought
+       backwards, exactly as the user's phone showed — the earlier
+       audit misread small full-frame captures and flipped Obi-Wan the
+       wrong way, and Vader's -PI/2 was an unverified assumption.
+       The side flip (+PI when facing left) composes on top; the
+       world-space pose/socket math is unaffected. */
+    const OBI_BASE_ROT=Math.PI/2;
+    const VADER_BASE_ROT=Math.PI/2;
     function threeOwns(f){ return T3.ok && ((f.char==='obi'&&T3.obiReady)||(f.char==='vader'&&T3.vaderReady)); }
     function g2wX(x){ return (x-480)/100; }
     function g2wY(y){ return (270-y)/100; }
