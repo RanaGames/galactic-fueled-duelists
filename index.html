@@ -1106,9 +1106,43 @@
         <div id="gate">
           <div class="gateArt" aria-hidden="true"></div>
           <div class="gateMain">
-            <button id="gateBtn">CLICK TO PLAY</button>
+            <button id="gateBtn" type="button">CLICK TO PLAY</button>
           </div>
         </div>
+        <style>
+          #gate{touch-action:manipulation;}
+          #gateBtn{touch-action:manipulation; cursor:pointer; -webkit-tap-highlight-color:rgba(216,191,138,.25);}
+        </style>
+        <script>
+        /* ENTRY GATE — wired HERE, beside its markup, not only at the end of
+           the game script: the gate is painted long before the multi-megabyte
+           game script finishes parsing on a phone, so a tap in that window
+           used to land on a button with no listener attached at all — and if
+           anything later in that script failed, the listener never attached
+           and the button stayed dead for the whole session. This handler
+           performs the visual dismissal itself and records it on
+           window.__gateGone; the game script adopts the flag when it boots
+           (running the audio/theme side) and keeps its own handlers as a
+           second path. It listens on pointerdown as well as click so a real
+           touch registers even when the browser never synthesises a click
+           for the tap, and the whole gate surface counts, not just the
+           button's box. */
+        (function(){
+          var done=false;
+          function go(){
+            if(done)return; done=true; window.__gateGone=true;
+            var m=document.getElementById('menu'); if(m)m.classList.remove('hidden');
+            var g=document.getElementById('gate');
+            if(g){ g.classList.add('gone'); setTimeout(function(){ g.style.display='none'; },480); }
+            if(typeof window.__mainDismissGate==='function'){ try{ window.__mainDismissGate(); }catch(e){} }
+          }
+          window.__gateTap=go;
+          var b=document.getElementById('gateBtn');
+          if(b){ b.addEventListener('pointerdown',go); b.addEventListener('click',go); }
+          var g=document.getElementById('gate');
+          if(g)g.addEventListener('pointerdown',function(e){ if(e.target!==b)go(); });
+        })();
+        </script>
 
       </div>
     </div>
@@ -6513,7 +6547,7 @@
     /* prevent scroll/zoom gestures on the arena during a fight — but NEVER inside
        the menu/pause/end overlays: they must stay scrollable or the BEGIN THE DUEL
        button is unreachable on phone-sized screens */
-    $('stageWrap').addEventListener('touchmove',e=>{ if(e.target.closest&&e.target.closest('.overlay'))return; e.preventDefault(); },{passive:false});
+    $('stageWrap').addEventListener('touchmove',e=>{ if(e.target.closest&&(e.target.closest('.overlay')||e.target.closest('#gate')))return; e.preventDefault(); },{passive:false});
     document.addEventListener('gesturestart',e=>e.preventDefault());
     /* ---- entry gate: the game boots here. One tap/click (or Enter/Space)
        dismisses it, reveals the main menu and starts the theme song inside
@@ -6522,15 +6556,27 @@
        resumes the theme via playMenuTheme(). ---- */
     let gateGone=false;
     function dismissGate(){
-      if(gateGone)return; gateGone=true;
-      audioInit();
-      $('menu').classList.remove('hidden');
-      playMenuTheme();
-      const g=$('gate');
-      if(g){ g.classList.add('gone'); setTimeout(()=>{ g.style.display='none'; },480); }
+      if(gateGone)return; gateGone=true; window.__gateGone=true;
+      /* visuals FIRST, each step isolated: a failure anywhere in the audio
+         stack must never leave the gate standing with gateGone already
+         latched (the old order set the latch, then let audioInit() run
+         before the menu was revealed — one throw stranded the player on a
+         dead gate for the rest of the session) */
+      try{ $('menu').classList.remove('hidden'); }catch(e){}
+      try{ const g=$('gate'); if(g){ g.classList.add('gone'); setTimeout(()=>{ g.style.display='none'; },480); } }catch(e){}
+      try{ audioInit(); }catch(e){}
+      try{ playMenuTheme(); }catch(e){}
     }
+    window.__mainDismissGate=dismissGate;
+    /* the gate may already have been tapped before this script finished
+       booting — the early handler beside the gate markup records that on
+       window.__gateGone and has already done the visuals; adopt the state
+       so the theme retry and the keyboard path stay in sync */
+    if(window.__gateGone){ gateGone=true; try{ $('menu').classList.remove('hidden'); }catch(e){} const g0=$('gate'); if(g0)g0.style.display='none'; }
     const gateBtn=$('gateBtn');
-    if(gateBtn)gateBtn.addEventListener('click',dismissGate);
+    if(gateBtn){ gateBtn.addEventListener('click',dismissGate); gateBtn.addEventListener('pointerdown',dismissGate); }
+    const gateEl=$('gate');
+    if(gateEl)gateEl.addEventListener('pointerdown',dismissGate);
     window.addEventListener('keydown',e=>{ if(!gateGone&&(e.code==='Enter'||e.code==='Space'))dismissGate(); });
     /* defensive retry: if a play() was ever interrupted (e.g. audio still
        loading at gate tap), the next interaction in the menu retries it.
