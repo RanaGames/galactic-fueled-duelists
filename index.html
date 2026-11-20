@@ -624,6 +624,76 @@
       .refDetails .fineprint{padding:0 14px 12px;}
       @media (max-width:760px){ .menuNav{gap:7px;} .mnav.mode{min-height:58px; font-size:13px;} .mnav.mode small{font-size:11.5px;} }
 
+
+      /* ================= HOME REDESIGN (v48): reference-layout home =================
+         HOME SCREEN ONLY. Every rule is scoped to #menu.atHome — the state
+         showPanel() sets while panelHome is active — so sub-screens keep
+         the shipped panel system, art and bottom bar untouched. The home
+         column reuses the exact same controls and handlers as before:
+         #startDuelBtn is the quick start (its #startDuelSub line is still
+         written by refreshSetupSummary()), the mode rows are the same
+         .mnav buttons with the same data-panel targets, and the footer
+         links are the same .mnav.foot buttons. Only the paint changed. */
+      #menu.atHome{background:#04040a;}
+      /* home backdrop: the game's Sith/Jedi key art itself, full-bleed
+         (cover) under a scrim that is near-solid over the art's baked-in
+         title band at the top and over the footer ground at the bottom,
+         and opens up through the middle so both duelists and their red
+         and blue blades read behind the CONTINUE pill and the mode list;
+         the rows carry their own text-shadow on top of the scrim */
+      #menu.atHome .menuArt{background-color:#04040a; background-image:linear-gradient(180deg, rgba(3,3,8,.995) 0%, rgba(3,3,8,.985) 17%, rgba(3,3,8,.60) 34%, rgba(3,3,8,.58) 52%, rgba(3,3,8,.84) 74%, rgba(3,3,8,.96) 100%), var(--menuart); background-size:cover; background-position:center; background-repeat:no-repeat;}
+      #menu.atHome .menuArt::after{background:none;}
+      #menu.atHome .menuMain{flex:1; width:min(560px,100%); margin:0 auto; padding:clamp(16px,3.6vh,40px) clamp(20px,5vw,34px) 0; gap:0;}
+      #menu.atHome .menuPanelWrap{display:none;}
+      #menu.atHome .menuBottom{display:none;}
+      #menu.atHome .menuLeft{order:0; flex:1; display:flex; flex-direction:column; width:100%; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0; border-top:none; background:none; animation:hmIn .35s ease;}
+      @keyframes hmIn{from{opacity:0;}to{opacity:1;}}
+      body.rm #menu.atHome .menuLeft{animation:none;}
+      @media (prefers-reduced-motion: reduce){ #menu.atHome .menuLeft{animation:none;} }
+      /* title block: the game's gold Cinzel brand, set like the reference —
+         brand line, big DUELISTS, tagline, hairline with a gold diamond */
+      .hmHead{text-align:center; padding-top:clamp(2px,1.4vh,14px);}
+      .hmBrand{margin:0; font-family:"Cinzel",serif; font-weight:700; font-size:clamp(14px,3.2vw,19px); letter-spacing:.44em; text-indent:.44em; color:var(--mgold);}
+      .hmTitle{margin:4px 0 0; font-family:"Cinzel",serif; font-weight:800; font-size:clamp(44px,11.5vw,68px); line-height:1.05; letter-spacing:.13em; text-indent:.13em; color:var(--cream); text-shadow:0 0 26px rgba(216,191,138,.26), 0 2px 10px rgba(0,0,0,.8);}
+      .hmTag{margin:11px 0 0; font-family:"Cinzel",serif; font-weight:700; font-size:clamp(10.5px,2.5vw,12.5px); letter-spacing:.52em; text-indent:.52em; color:var(--mgold-hi);}
+      .hmRule{display:flex; align-items:center; gap:12px; margin:clamp(15px,2.8vh,24px) 2px 0;}
+      .hmRule::before{content:""; flex:1; height:1px; background:linear-gradient(90deg, transparent, rgba(216,191,138,.45));}
+      .hmRule::after{content:""; flex:1; height:1px; background:linear-gradient(90deg, rgba(216,191,138,.45), transparent);}
+      .hmDia{flex:0 0 auto; width:8px; height:8px; background:var(--mgold); transform:rotate(45deg); box-shadow:0 0 9px rgba(216,191,138,.65);}
+      /* continue pill: replaces the START DUEL block + last-duel panel on
+         the home screen; same button, same click, same live setup line */
+      #menu.atHome #startDuelBtn{display:flex; align-items:center; gap:14px; width:100%; min-height:64px; margin:clamp(15px,2.8vh,23px) 0 0; padding:10px 18px; text-align:left; color:var(--cream); background:linear-gradient(180deg, rgba(40,33,26,.72), rgba(14,12,16,.8)); border:1px solid rgba(216,191,138,.55); border-radius:14px; box-shadow:0 10px 26px rgba(0,0,0,.5), inset 0 1px 0 rgba(239,220,171,.14); text-shadow:none;}
+      #menu.atHome #startDuelBtn:active{transform:scale(.99);}
+      .hmPillTxt{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+      .hmPillLab{font-family:"Cinzel",serif; font-size:11px; font-weight:700; letter-spacing:.34em; color:var(--mgold);}
+      #menu.atHome #startDuelSub{margin:0; min-height:0; text-align:left; text-transform:none; font-family:"Rajdhani",sans-serif; font-size:16.5px; font-weight:600; letter-spacing:.02em; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+      .hmPillArrow{flex:0 0 auto; color:var(--mgold);}
+      /* mode list: plain Cinzel text rows, hairline separators, no boxes.
+         Press (and keyboard focus) gets the reference treatment: a
+         translucent gold wash plus a small gold arrow at the left edge.
+         No row carries a standing selection state on the home screen. */
+      #menu.atHome .menuNav{display:flex; flex-direction:column; flex-wrap:nowrap; justify-content:flex-start; gap:0; margin-top:clamp(13px,2.4vh,20px);}
+      #menu.atHome .mnav.mode{position:relative; flex-direction:row; justify-content:flex-start; width:100%; min-height:55px; padding:0 14px 0 42px; background:none; border:none; border-bottom:1px solid rgba(216,191,138,.22); border-radius:0; box-shadow:none; font-size:clamp(18.5px,4.5vw,23px); font-weight:700; letter-spacing:.12em; color:var(--cream); text-align:left; text-shadow:0 1px 4px rgba(0,0,0,.6);}
+      #menu.atHome .mnav.mode:first-child{border-top:1px solid rgba(216,191,138,.22);}
+      #menu.atHome .mnav.mode::before{content:""; position:absolute; left:15px; top:50%; width:0; height:0; border-top:5px solid transparent; border-bottom:5px solid transparent; border-left:7px solid var(--mgold); transform:translateY(-50%); opacity:0; transition:opacity .15s ease;}
+      #menu.atHome .mnav.mode:active{transform:none; background:linear-gradient(90deg, rgba(216,191,138,.22), rgba(216,191,138,.05) 72%, rgba(216,191,138,0));}
+      #menu.atHome .mnav.mode:active::before{opacity:1;}
+      #menu.atHome .mnav.mode:focus-visible{outline:none; background:linear-gradient(90deg, rgba(216,191,138,.22), rgba(216,191,138,.05) 72%, rgba(216,191,138,0)); box-shadow:inset 0 0 0 1px rgba(216,191,138,.45);}
+      #menu.atHome .mnav.mode:focus-visible::before{opacity:1;}
+      @media (hover:hover){ #menu.atHome .mnav.mode:hover{background:linear-gradient(90deg, rgba(216,191,138,.13), rgba(216,191,138,.03) 72%, rgba(216,191,138,0)); color:#fff;} #menu.atHome .mnav.mode:hover::before{opacity:.6;} }
+      #menu.atHome .mnav.sel{background:none; box-shadow:none; color:var(--cream);}
+      body.rm #menu.atHome .mnav.mode::before{transition:none;}
+      /* footer: pinned to the bottom of the home column — hairline, the
+         three text links, then the muted build line */
+      #menu.atHome .menuFoot{margin-top:auto; padding:15px 0 0; border-top:1px solid rgba(216,191,138,.3); display:flex; justify-content:center; gap:clamp(24px,7vw,46px);}
+      #menu.atHome .mnav.foot{min-height:34px; padding:2px 4px; font-size:12.5px;}
+      #menu.atHome .mnav.foot.sel{background:none; box-shadow:none;}
+      .hmVer{margin-top:9px; padding-bottom:calc(13px + env(safe-area-inset-bottom)); text-align:center; font-family:"Rajdhani",sans-serif; font-size:11px; font-weight:600; letter-spacing:.2em; color:rgba(185,176,154,.55);}
+      @media (max-height:740px){
+        #menu.atHome .mnav.mode{min-height:48px; font-size:17.5px;}
+        .hmTitle{font-size:clamp(38px,10vw,54px);}
+        .hmHead{padding-top:0;}
+      }
       /* ================= S5: MODES + PROGRESSION ================= */
       .fbtn.locked,.hbtn.locked{opacity:.42; filter:grayscale(.75); border-style:dashed;}
       .swatch.locked{opacity:.38; filter:grayscale(.85); box-shadow:inset 0 0 0 2px rgba(0,0,0,.6); position:relative;}
@@ -860,23 +930,34 @@
           <div class="menuArt" aria-hidden="true"></div>
           <div class="menuMain">
             <div class="menuLeft">
-              <h1 class="sr-only">GALACTIC FUELED — DUELISTS · MASTER THE BLADE</h1>
-              <button id="startDuelBtn">START DUEL</button>
-              <div class="startSub" id="startDuelSub"></div>
+              <header class="hmHead">
+                <p class="hmBrand">GALACTIC FUELED</p>
+                <h1 class="hmTitle">DUELISTS</h1>
+                <p class="hmTag">MASTER THE BLADE</p>
+                <div class="hmRule" aria-hidden="true"><span class="hmDia"></span></div>
+              </header>
+              <button id="startDuelBtn" type="button" aria-label="Continue — start a duel with your last setup">
+                <span class="hmPillTxt">
+                  <span class="hmPillLab">CONTINUE</span>
+                  <span class="startSub" id="startDuelSub"></span>
+                </span>
+                <svg class="hmPillArrow" viewBox="0 0 12 14" width="13" height="15" aria-hidden="true" focusable="false"><path d="M1 1.2v11.6c0 .9 1 1.5 1.8 1L11.4 8a1.15 1.15 0 0 0 0-2L2.8.2C2-.3 1 .3 1 1.2z" fill="currentColor"/></svg>
+              </button>
               <nav class="menuNav" aria-label="Main menu">
-                <button class="mnav mode primary" data-panel="panelVersus"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c-4.4 0-7 3.1-7 7.1 0 3 .9 5.3 1.6 9.4h10.8c.7-4.1 1.6-6.4 1.6-9.4C19 6.1 16.4 3 12 3z"/><path d="M12 7.6c-2.1 0-3.4 1.7-3.4 3.9 0 1.5.6 2.7 1.3 3.9h4.2c.7-1.2 1.3-2.4 1.3-3.9 0-2.2-1.3-3.9-3.4-3.9z"/></svg></span>VS CPU<small>Fighter select — pick your duelist &amp; setup</small></button>
-                <button class="mnav mode" data-panel="panelOnline"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.3 3.9 5.2 3.9 8.5s-1.3 6.2-3.9 8.5c-2.6-2.3-3.9-5.2-3.9-8.5s1.3-6.2 3.9-8.5z"/></svg></span>ONLINE DUEL<small>Room-code duel with a friend</small></button>
-                <button class="mnav mode" data-panel="panelTraining"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" aria-hidden="true"><path d="M9.6 14.4 L19.6 4.4" stroke="#6db3ff" stroke-width="2.1"/><path d="M8.1 15.9 L4.7 19.3" stroke="#d8bf8a" stroke-width="2.7"/><path d="M7.2 13.2 l3.4 3.4" stroke="#d8bf8a" stroke-width="1.6"/></svg></span>TRAINING<small>Drills &amp; the Practice Lab</small></button>
-                <button class="mnav mode" data-panel="panelLadder"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 20v-5h4v5M10 20V9h4v11M16 20V4h4v16"/></svg></span>ARCADE LADDER<small>Seven rungs, rising difficulty</small></button>
-                <button class="mnav mode" data-panel="panelSurvival"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2.5 9c2.8-2.4 5.2-2.4 8 0s5.2 2.4 8 0M2.5 15.5c2.8-2.4 5.2-2.4 8 0s5.2 2.4 8 0"/></svg></span>SURVIVAL<small>Endless waves — best run saved</small></button>
-                <button class="mnav mode" data-panel="panelBoss"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.2 4.9L19.5 9l-3.8 3.7 1 5.3L12 15.6 7.3 18l1-5.3L4.5 9l5.3-1.1z"/></svg></span>BOSS RUSH<small>Four bosses, one clock</small></button>
-                <button class="mnav mode" data-panel="panelLocal"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="8" r="3.2"/><path d="M3.5 20c.6-3 2.3-4.5 4.5-4.5S11.9 17 12.5 20M11.5 20c.6-3 2.3-4.5 5-4.5 2 0 3.4 1.5 4 4.5"/></svg></span>LOCAL VERSUS<small>Two players, one device</small></button>
-                </nav>
+                <button class="mnav mode" data-panel="panelLadder">ARCADE LADDER</button>
+                <button class="mnav mode" data-panel="panelVersus">VS CPU</button>
+                <button class="mnav mode" data-panel="panelLocal">LOCAL VERSUS</button>
+                <button class="mnav mode" data-panel="panelOnline">ONLINE DUEL</button>
+                <button class="mnav mode" data-panel="panelTraining">TRAINING</button>
+                <button class="mnav mode" data-panel="panelSurvival">SURVIVAL</button>
+                <button class="mnav mode" data-panel="panelBoss">BOSS RUSH</button>
+              </nav>
               <div class="menuFoot">
-                <button class="mnav foot" data-panel="panelSettings"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg></span>SETTINGS</button>
-                <button class="mnav foot" data-panel="panelExtras"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></span>CREDITS</button>
-                <button class="mnav foot" data-panel="panelProgress"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d8bf8a" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 19V10M9.5 19V5M15 19v-8M20 19V7"/></svg></span>PROGRESS</button>
+                <button class="mnav foot" data-panel="panelSettings">SETTINGS</button>
+                <button class="mnav foot" data-panel="panelExtras">CREDITS</button>
+                <button class="mnav foot" data-panel="panelProgress">PROGRESS</button>
               </div>
+              <div class="hmVer">BUILD b279ad2</div>
             </div>
             <div class="menuPanelWrap">
               <section class="mpanel on" id="panelHome">
@@ -1309,6 +1390,42 @@
           if(b){ b.addEventListener('pointerdown',go); b.addEventListener('click',go); }
           var g=document.getElementById('gate');
           if(g)g.addEventListener('pointerdown',function(e){ if(e.target!==b)go(); });
+        })();
+        </script>
+        <script>
+        /* MENU NAV — wired HERE, beside the gate script, for the same
+           reason the gate is: the main script attaches its own .mnav
+           handlers thousands of lines into a boot that first applies the
+           saved settings, and if anything in that chain ever throws on a
+           given device the player is left looking at a menu whose rows
+           do nothing at all. This early wiring makes panel navigation
+           work from the moment the markup is parsed. It performs exactly
+           the DOM half of the main script's showPanel() — same classes,
+           same hint text — and class state is set, never blindly
+           toggled, so when the main script boots and attaches its own
+           handlers alongside, both drive the identical end state and
+           nothing double-fires. The current panel is recorded on
+           window.__earlyPanel for the main script to adopt. */
+        (function(){
+          var hints={panelHome:'Your last duel is loaded — START DUEL replays it in one tap.',panelVersus:'VS CPU — choose your fighter and setup, then BEGIN DUEL.',panelOnline:'Duel a friend online — create a room, or join with their code.',panelTraining:'Drills & the Practice Lab — the full rules reference is folded inside.',panelSettings:'Volume, shake, controls and accessibility — applied immediately.',panelExtras:'Credits — models, art and attributions.'};
+          function show(id){
+            if(!id)return;
+            window.__earlyPanel=id;
+            var navs=document.querySelectorAll('.mnav');
+            for(var i=0;i<navs.length;i++)navs[i].classList.toggle('sel',navs[i].getAttribute('data-panel')===id);
+            var ps=document.querySelectorAll('.mpanel');
+            for(var j=0;j<ps.length;j++)ps[j].classList.toggle('on',ps[j].id===id);
+            var m=document.getElementById('menu'); if(m)m.classList.toggle('atHome',id==='panelHome');
+            var h=document.getElementById('menuHint'); if(h)h.textContent=hints[id]||'';
+            var pw=document.querySelector('.menuPanelWrap'); if(pw)pw.scrollTop=0;
+          }
+          window.__earlyShowPanel=show;
+          var navs=document.querySelectorAll('.mnav');
+          for(var i=0;i<navs.length;i++)(function(b){
+            b.addEventListener('click',function(){ show(b.getAttribute('data-panel')); });
+          })(navs[i]);
+          var backs=document.querySelectorAll('.backBtn');
+          for(var k=0;k<backs.length;k++)backs[k].addEventListener('click',function(){ show('panelHome'); });
         })();
         </script>
 
@@ -8276,20 +8393,25 @@
     /* ---- apply the versioned saved settings (migration-safe: new
        fields fall back to defaults, known fields are never wiped) ---- */
     loadSave();
-    setDiff(SAVE.diff); setFx(SAVE.fx); setLayout(SAVE.layout); setHitboxDebug(SAVE.debugHitboxes);
+    /* every apply group is isolated: the menu wiring and everything
+       after this chain depends on the boot completing, so one setter
+       choking on a saved value must degrade that one setting — never
+       strand the whole script (and the menu) for the session */
+    try{ setDiff(SAVE.diff); setFx(SAVE.fx); setLayout(SAVE.layout); setHitboxDebug(SAVE.debugHitboxes); }catch(e){}
     /* S3 boot apply: archetype choice + adaptive toggle (persistSave
        is still gated until saveReady, so these cannot clobber) */
-    setArchetype(SAVE.arch); setAdapt(SAVE.adaptive);
-    if(SAVE.muted)setMuted(true);
-    setVolume(SAVE.volume); setShake(SAVE.shake); setCtlSize(SAVE.ctlSize); setGuardSens(SAVE.guardSens); setCB(SAVE.cbSymbols); setRM(SAVE.reducedMotion);
+    try{ setArchetype(SAVE.arch); setAdapt(SAVE.adaptive); }catch(e){}
+    try{ if(SAVE.muted)setMuted(true);
+    setVolume(SAVE.volume); setShake(SAVE.shake); setCtlSize(SAVE.ctlSize); setGuardSens(SAVE.guardSens); setCB(SAVE.cbSymbols); setRM(SAVE.reducedMotion); }catch(e){}
     /* ANALOG STAGE A boot apply: scheme + stick settings (still pre-saveReady, so nothing clobbers) */
-    setScheme(SAVE.scheme); setAnaSize(SAVE.anaSize); setAnaSens(SAVE.anaSens); setAnaDead(SAVE.anaDead); setAnaOff(SAVE.anaOffX,SAVE.anaOffY); setAnaInd(SAVE.anaInd);
+    try{ setScheme(SAVE.scheme); setAnaSize(SAVE.anaSize); setAnaSens(SAVE.anaSens); setAnaDead(SAVE.anaDead); setAnaOff(SAVE.anaOffX,SAVE.anaOffY); setAnaInd(SAVE.anaInd); }catch(e){}
     /* S4 boot apply: saber builds + finisher switch (still pre-saveReady, so nothing clobbers) */
-    applySavedSabers(); setFinishers(SAVE.finishers); setCine(SAVE.cine); setBladeLock(SAVE.bladeLock); setGore(SAVE.gore);
+    try{ applySavedSabers(); setFinishers(SAVE.finishers); setCine(SAVE.cine); setBladeLock(SAVE.bladeLock); setGore(SAVE.gore); }catch(e){}
     saveReady=true; persistSave();
     /* MENU CLEANUP boot: restore the last-used duel setup (new key;
        the settings save above was already applied and is untouched) */
-    applyLastSetup(loadLastSetup()); persistLastSetup();
+    try{ applyLastSetup(loadLastSetup()); }catch(e){}
+    persistLastSetup();
     /* ---- STAGE 3: drill launchers + drill result buttons ---- */
     document.querySelectorAll('.drillBtn').forEach(b=>b.addEventListener('click',()=>{ startTraining(b.dataset.drill); }));
     $('drillRetryBtn').addEventListener('click',()=>{ if(TR)startTraining(TR.id); });
