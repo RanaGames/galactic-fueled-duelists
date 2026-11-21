@@ -506,6 +506,10 @@
       #fightStage.scheme-analog #guardRight{display:flex;}
       #fightStage.scheme-analog.layout-classic #classicRight{display:none;}
       #fightStage.scheme-analog #dodgeL{display:none;}
+      /* STAGE 2 DEF: the GUARD modifier button exists only in the
+         Analog scheme (Classic keeps its own BLOCK button) */
+      #anaGuardBtn{display:none;}
+      #fightStage.scheme-analog #anaGuardBtn{display:flex;}
       #anaStickBase{position:absolute; left:50%; top:50%; width:96px; height:96px; border-radius:50%; transform:translate(-50%,-50%); background:radial-gradient(circle at 50% 42%, rgba(40,38,42,.82), rgba(8,8,12,.92)); border:1px solid rgba(89,194,255,.45); box-shadow:0 0 0 1px rgba(0,0,0,.65), inset 0 0 24px rgba(0,0,0,.8), 0 6px 18px rgba(0,0,0,.5); opacity:.55; transition:left .18s ease, top .18s ease, opacity .15s;}
       #anaStickBase::before{content:""; position:absolute; inset:9px; border-radius:50%; border:1px dashed rgba(89,194,255,.3);}
       #anaStickBase::after{content:"✦"; position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; font-size:13px; color:rgba(89,194,255,.4); pointer-events:none;}
@@ -809,6 +813,13 @@
               </div>
               <button class="cbtn spc" data-btn="force" id="forceBtn"><span id="forceGlyph"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M20.2 12 A8.2 8.2 0 1 1 17.9 6.2"/><path d="M17.6 12 A5.6 5.6 0 1 1 16 8"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></span><small id="forceBtnLab">FORCE</small></button>
               <button class="cbtn" data-btn="formNext" id="formBtn" style="margin-top:8px;"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M5 4.5 L19 18.5"/><path d="M19 4.5 L5 18.5"/><path d="M3.8 7.5 L7.5 3.8"/><path d="M16.5 3.8 L20.2 7.5"/></svg><small id="formBtnLab">FORM V</small></button>
+              <!-- STAGE 2 DEF: the GUARD modifier button, Analog scheme
+                   only (CSS-scoped below). Holding it (or the L key)
+                   makes the saber stick defensive: physical blocking /
+                   parrying, and no gesture slashes can fire. It is the
+                   shipped BLOCK channel (data-btn="block"), so every
+                   existing block / parry / feint rule reads it as-is. -->
+              <button class="cbtn blk" data-btn="block" id="anaGuardBtn" style="margin-top:8px;" aria-label="Guard — hold while aiming the saber stick to defend physically"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M12 3 L19 5.4 V11 C19 15.9 15.9 19.2 12 20.8 C8.1 19.2 5 15.9 5 11 V5.4 Z"/></svg><small>GUARD</small></button>
             </div>
             <div id="guardPad" aria-label="Directional guard pad — tap or flick a direction to set your guard, hold to block, a fresh timed tap in the matching direction parries">
               <div class="gz gz-l" data-gz="left">◀</div>
@@ -823,7 +834,7 @@
                  follows the stick. Attacks never fire from this stick. -->
             <div id="anaStickZone" aria-label="Analog saber stick — hold a direction to guard that line, your blade aim follows the stick">
               <div id="anaStickBase"><div id="anaAimInd"></div><div id="anaStickKnob"></div></div>
-              <div id="anaStickLab">SABER · AIM + GUARD</div>
+              <div id="anaStickLab">SABER · HOLD GUARD TO DEFEND</div>
             </div>
             <!-- Strike grid: right cluster in Classic. In the Analog
                  scheme the CSS above lifts this same grid to the LEFT,
@@ -872,7 +883,7 @@
           <div id="drillTools"></div>
         </div>
         <div id="labFlash" aria-live="polite"></div>
-        <div id="kbHint">A/D move (hold away = block) · W jump · S low guard · Z/X/C direction (left/overhead/right) · J light · K heavy · L block (fresh + right direction = parry) · F / Guard during heavy startup = feint · Shift dodge · U pull · I special · O alt · T form (Shift+T back) &middot; R reset bars (practice) · Touch: thumb stick moves &middot; flick LIGHT/HEAVY to aim swings (tap = guard-pad direction) &middot; guard pad guards &middot; rotate the stick in a Blade Lock &middot; Analog scheme: strike grid (LIGHT / HEAVY / JUMP / DODGE) on the left above the movement stick, saber stick on the right</div>
+        <div id="kbHint">A/D move (hold away = block) · W jump · S low guard · Z/X/C direction (left/overhead/right) · J light · K heavy · L block (fresh + right direction = parry) · F / Guard during heavy startup = feint · Shift dodge · U pull · I special · O alt · T form (Shift+T back) &middot; R reset bars (practice) · Touch: thumb stick moves &middot; flick LIGHT/HEAVY to aim swings (tap = guard-pad direction) &middot; guard pad guards &middot; rotate the stick in a Blade Lock &middot; Analog scheme: strike grid (LIGHT / HEAVY / JUMP / DODGE) on the left above the movement stick, saber stick on the right &middot; Analog defence: hold GUARD (L key / GUARD button) and aim the saber stick into the strike — blocks and parries are physical, your blade must actually reach the incoming blade; while GUARD is held the stick cannot slash, and in a Blade Lock push the saber stick the way the arrow points instead of rotating</div>
 
         <!-- MATCH END: part of the fight screen, so it lives inside the
              fight layer and shares the duel's (possibly forced) orientation
@@ -1142,7 +1153,7 @@
                     <li><span class="k">Jumping:</span> Push the stick up to jump &mdash; up = straight, up+toward = leap in, up+away = leap back. Or use the JUMP button. The direction is read against the way you face, so it mirrors when you face left. Push up again in mid-air for the <b>Force Jump</b> (10 Force, once per jump), same as pressing JUMP again. Holding the stick up never re-jumps on landing &mdash; ease it back and push again.</li>
                     <li><span class="k">Switching Sides:</span> three ways past your rival. <b>Cross-up jump</b> &mdash; jump from close range holding <b>toward</b> them and you sail over their head, landing on the far side. Facing follows position, so a guard held for the old side now faces the wrong way: after a cross-up, re-guard for the new side or the next swing lands clean. <b>Force Jump</b> &mdash; press <b>Jump again in mid-air</b> for a second, stronger leap: costs <b>10 Force</b>, once per jump, and under 10 Force the press does nothing. It clears from farther out, or over a jumping rival. <b>Walk-past</b> &mdash; keep walking <b>into</b> a rival at body contact for about a quarter of a second and you slip past each other and swap sides. It only starts from a calm walk &mdash; never mid-swing, mid-stun or mid-lock.</li>
                     <li><span class="k">Saber Clash:</span> if both blades go live in the same instant and meet, they <b>bind</b>: the heavier swing wins; on equal weight, the later-committed swing wins. Never random. The loser pays Posture and staggers.</li>
-                    <li><span class="k">Blade Lock:</span> when two <b>Heavy</b> swings clash dead-even, the blades can <b>LOCK</b> instead of binding &mdash; the camera pushes in and a rotation arrow appears. <b>Rotate your movement stick the way the arrow shows</b> (clockwise or counter-clockwise) to build struggle power; wrong-way rotation adds nothing. On Knight and Master the arrow may flip once mid-lock &mdash; watch for <b>REVERSE!</b> First to fill the gauge, or ahead when the ~3 seconds end, wins: the loser is shoved back and burns <b>25 Posture</b> (a Guard Break if that empties it) &mdash; no health damage. At most twice per round and never twice inside 20 seconds. <b>Local play only</b> &mdash; online duels always use the instant bind above. Turn it off in Settings (BLADE LOCK STRUGGLES) and heavy clashes always bind instantly.</li>
+                    <li><span class="k">Blade Lock:</span> when two <b>Heavy</b> swings clash dead-even, the blades can <b>LOCK</b> instead of binding &mdash; the camera pushes in and a rotation arrow appears. <b>Rotate your movement stick the way the arrow shows</b> (clockwise or counter-clockwise) to build struggle power; wrong-way rotation adds nothing. On Knight and Master the arrow may flip once mid-lock &mdash; watch for <b>REVERSE!</b> First to fill the gauge, or ahead when the ~3 seconds end, wins: the loser is shoved back and burns <b>25 Posture</b> (a Guard Break if that empties it) &mdash; no health damage. At most twice per round and never twice inside 20 seconds. <b>Local play only</b> &mdash; online duels always use the instant bind above. Turn it off in Settings (BLADE LOCK STRUGGLES) and heavy clashes always bind instantly. In Analog controls the struggle is pressure, not rotation: hold the saber stick pushed the way the arrow points (toward your rival — or away after a REVERSE!) to build power at the same rate; pushing against it builds nothing.</li>
                     <li><span class="k">Guard Break:</span> blocked hits drain <b>Posture</b> (Heavies drain most). Posture empty = <b>GUARD BREAK</b> &mdash; a full <b>2 seconds</b> wide open, then it recovers. Don&rsquo;t turtle forever: holding block slowly drains it too.</li>
                     <li><span class="k">Stamina:</span> attacks and dodges spend <b>Stamina</b> (Light 6 &middot; Heavy 12 &middot; Dodge 10) &mdash; the teal bar under Posture. Blocking never drains it. It refills at rest (not while attacking or blocking). Below an action&rsquo;s cost you <b>cannot start it</b> at all &mdash; you flash <b>EXHAUSTED</b> instead. Roughly 6&ndash;8 mixed actions from full before it matters; the CPU lives by the same bar.</li>
                     <li><span class="k">Frame Data:</span> every strike is data: <b>startup / active / recovery frames</b>, damage, posture damage, stamina cost and a <b>guard type</b> (OVERHEAD = High, LEFT/RIGHT = Mid, LOW = Low). The blade only hits during its <b>active frames</b>, swept along the hilt-to-tip line &mdash; and a press made during recovery or hitstun is <b>buffered for 150ms</b> and fires on your first free frame.</li>
@@ -1298,7 +1309,7 @@
                 </div>
                 <div class="setRow">
                   <span class="slab">TOUCH BINDINGS</span>
-                  <span class="sdesc" style="margin-top:0; width:auto;">Left thumb stick: push to move, hold away = guard (away+down = low guard); push the stick up to jump &mdash; up = straight, up+toward = leap in, up+away = leap back &mdash; or use the JUMP button; in a Blade Lock, rotate it the way the arrow shows &middot; JUMP and DODGE sit in the strike cluster beside LIGHT / HEAVY (right side in Classic Controls; left side, above this stick, in Analog) &middot; LIGHT / HEAVY are flick mini-sticks in both layouts: drag up / down / toward / away to swing OVERHEAD / LOW / RIGHT / LEFT, fired mid-drag; a plain tap uses your guard-pad direction &middot; Guard Pad layout: right pad tap/flick = guard direction, hold = guard, fresh timed tap = parry, FORCE opens the ability strip (tap a slot to cast) &middot; Classic layout: BLOCK button + three always-on Force buttons &middot; Analog Saber Controls: a right saber stick replaces the guard pad &mdash; hold a direction to guard that line, and your blade aim follows the stick while you stand, move or guard; attacks stay on LIGHT / HEAVY, and the whole strike grid (LIGHT / HEAVY / JUMP / DODGE) sits on the LEFT above the movement stick, so the left thumb strikes while the right thumb aims.</span>
+                  <span class="sdesc" style="margin-top:0; width:auto;">Left thumb stick: push to move, hold away = guard (away+down = low guard); push the stick up to jump &mdash; up = straight, up+toward = leap in, up+away = leap back &mdash; or use the JUMP button; in a Blade Lock, rotate it the way the arrow shows &middot; JUMP and DODGE sit in the strike cluster beside LIGHT / HEAVY (right side in Classic Controls; left side, above this stick, in Analog) &middot; LIGHT / HEAVY are flick mini-sticks in both layouts: drag up / down / toward / away to swing OVERHEAD / LOW / RIGHT / LEFT, fired mid-drag; a plain tap uses your guard-pad direction &middot; Guard Pad layout: right pad tap/flick = guard direction, hold = guard, fresh timed tap = parry, FORCE opens the ability strip (tap a slot to cast) &middot; Classic layout: BLOCK button + three always-on Force buttons &middot; Analog Saber Controls: a right saber stick replaces the guard pad &mdash; hold a direction to guard that line, and your blade aim follows the stick while you stand, move or guard; attacks stay on LIGHT / HEAVY, and the whole strike grid (LIGHT / HEAVY / JUMP / DODGE) sits on the LEFT above the movement stick, so the left thumb strikes while the right thumb aims. Defence is physical: hold GUARD (L key / GUARD button) and the saber stick positions your blade — a strike is blocked or parried only if your blade actually meets it, moving your blade into the strike inside the parry window parries, and stick movement cannot slash while GUARD is held.</span>
                 </div>
                 <div class="setRow">
                   <span class="slab">DISPLAY</span>
@@ -2169,6 +2180,13 @@
     }
     function ana3Poll(){
       ANA3.fire=null;
+      /* STAGE 2 DEF §6 — NO ACCIDENTAL ATTACKS: while GUARD is held
+         (the L key / GUARD button — the standing guard modifier),
+         right-stick movement is defensive ONLY and the gesture
+         recogniser must not fire from it. The sample window and any
+         open candidate are cleared, so releasing GUARD restores
+         gesture attacks from a clean slate, exactly as shipped. */
+      if(ANA.on&&(keys.KeyL||btnState.block)){ ANA3.hist.length=0; ANA3.cand=null; return; }
       if(!ANA.on)return;
       if(typeof G==='undefined'||!G||G.mode!=='fight'||G.phase!=='fight')return;
       const f=(typeof selfF==='function')?selfF():null;
@@ -2372,14 +2390,26 @@
          not a dirSel (guardDirOf reads blockLow), so it drives down. */
       /* ANALOG STAGE A: with the Analog scheme on, the guard pad is
          replaced by the right saber stick — its sector feeds the SAME
-         dirSel (nearest anchor, facing space) and holding a deflection
-         is the held guard, exactly the pad's contract, so the sim sees
-         byte-identical commands. The pad's own contributions are muted
-         in Analog so a stale pad direction can never leak in. */
-      let anaBlock=false;
+         dirSel (nearest anchor, facing space). The pad's own
+         contributions are muted in Analog so a stale pad direction
+         can never leak in.
+         STAGE 2 COMPLETION — TWIN-STICK AMENDMENT (user report:
+         "Why can't I walk while using the directional attack
+         stick"): Stage A ALSO read a held deflection as the held
+         guard, so aiming the blade rooted the fighter. That feed
+         is REMOVED: deflection alone is aim / blade positioning
+         only — it still selects dirSel (and LOW still reads as
+         crouch) and still stamps the continuous ctl.anaAng the
+         sim blade tracks, but it never raises ctl.block. The
+         held guard is now exactly the GUARD modifier (L key /
+         GUARD button — the same input that stamps ctl.guard and
+         arms physical interception), and while GUARD is held the
+         fighter guard-walks at TUNING.ANA_GUARD_WALK_MUL instead
+         of rooting (fighterUpdate). Left-stick movement therefore
+         works at full walk speed while the saber stick is
+         deflected, in either hand, at the same time. */
       if(ANA.on){
         if(anaStick.active&&anaStick.mag>0){
-          anaBlock=true;
           const sec=anaSector();
           /* ANALOG STAGE 3: a downward slash ENDS with the stick in
              this low sector — on the very tick the gesture fires,
@@ -2433,6 +2463,13 @@
          derives the desired angle from the packed guard sector
          instead, identically on both clients. */
       let anaCtlOn=0, anaCtlAng=null;
+      /* STAGE 2 DEF: the GUARD modifier stamp — GUARD held (L key /
+         GUARD button) while the Analog scheme is on. Local play only,
+         exactly like anaAng: packCtl drops it by construction, so the
+         online packet is unchanged and online defence keeps the
+         shipped discrete resolution this stage (§7). The sim reads
+         it as ctl.guard on the defender (physical interception). */
+      const anaGuardHeld=(ANA.on&&!(typeof G!=='undefined'&&G&&G.online)&&(keys.KeyL||btnState.block))?1:0;
       if(ANA.on&&!(typeof G!=='undefined'&&G&&G.online)){
         anaCtlOn=1;
         if(anaStick.active&&anaStick.mag>0){
@@ -2450,7 +2487,7 @@
         down: down,
         light: !!(keys.KeyJ||btnState.light||flickLight),
         heavy: !!(keys.KeyK||btnState.heavy||flickHeavy),
-        block: !!(keys.KeyL||btnState.block||stickBlock||(padState.held&&!ANA.on)||anaBlock),
+        block: !!(keys.KeyL||btnState.block||stickBlock||(padState.held&&!ANA.on)),
         feint: !!(keys.KeyF),
         dash: !!(keys.ShiftLeft||(keys.ShiftRight&&!G.versus)||btnState.dash), /* S5: Right Shift is P2's dodge in Local Versus */
         pull: !!(keys.KeyU||btnState.pull||castPull),
@@ -2466,6 +2503,9 @@
            ctl's fighter is analog-driven; anaAng = desired blade
            angle in facing space, or null for a neutral stick */
         ana: anaCtlOn, anaAng: anaCtlAng,
+        /* STAGE 2 DEF channel: GUARD modifier held this tick (local
+           analog only — see the stamp above) */
+        guard: anaGuardHeld,
         /* ANALOG STAGE 3 channel: this tick's recognised gesture
            (family / energy / driven trajectory), or null. Local
            only in effect — packCtl drops it by construction, so an
@@ -2603,7 +2643,46 @@
          blade travel the player never commanded (block-press guard
          snaps, post-hitstun re-seeds to a held aim) */
       ANA3_MIN_STICK_MAG: 0.6,
-      ANA3_MIN_DES_EXC: 0.55
+      ANA3_MIN_DES_EXC: 0.55,
+      /* ---- ANALOG STAGE 2 DEF (user Stage 2): TRUE MANUAL DEFENSE ----
+         The ONLY new numbers this stage adds. Physical interception
+         grades by contact quality: the folded crossing factor of the
+         two blade lines (sin of the angle between them, folded into
+         [0,1] — 1 = perpendicular) below ANA_DEF_GLANCE_CROSS, or a
+         contact farther than ANA_DEF_GLANCE_DIST units from the
+         defender's blade line (the intercept radius itself is the
+         shipped BLADE_RADIUS+6 = 32), is a GLANCING contact: the
+         strike still stops, but the defender pays posture x
+         ANA_DEF_GLANCE_POSTURE_MUL and it can never parry. An ACTIVE
+         PARRY additionally needs the defender's blade TIP moving at
+         >= ANA_DEF_PARRY_TIP_SPEED units/s with its velocity opposed
+         to the incoming tip's (dot of the two tip-velocity unit
+         vectors <= ANA_DEF_PARRY_INTO_COS) inside the shipped
+         9-tick fresh-guard window — the window itself never changes.
+         Blade recoil on a block shoves the defender's sim blade by
+         ANA_DEF_RECOIL_LIGHT / ANA_DEF_RECOIL_HEAVY radians (heavies
+         push harder, per the shipped momentum feel). Blade Lock
+         pressure (analog) builds ANA_LOCK_PRESSURE_RATE power per
+         second at a full correct push — comparable to the shipped
+         rotation contest's ~34 power/rev at a brisk spin. */
+      ANA_DEF_GLANCE_CROSS: 0.5,
+      ANA_DEF_GLANCE_DIST: 18,
+      ANA_DEF_GLANCE_POSTURE_MUL: 1.5,
+      ANA_DEF_PARRY_TIP_SPEED: 240,
+      ANA_DEF_PARRY_INTO_COS: -0.2,
+      ANA_DEF_RECOIL_LIGHT: 0.10,
+      ANA_DEF_RECOIL_HEAVY: 0.22,
+      ANA_LOCK_PRESSURE_RATE: 40,
+      /* ---- STAGE 2 COMPLETION — TWIN-STICK AMENDMENT ----
+         While GUARD is held (the defensive stance), an analog
+         fighter may still walk at this fraction of its normal
+         walk speed instead of rooting in place (see the movement
+         branch in fighterUpdate). Saber-stick deflection ALONE
+         never roots: it is aim / blade positioning only (see
+         playerCtl). Full stops remain only in the shipped rooted
+         states — contact resolution, hitstun, casts, GuardBroken
+         and Blade Lock. */
+      ANA_GUARD_WALK_MUL: 0.45
     };
     const SIM_STEP=1/TUNING.SIM_HZ;
     /* STAGE 4 guard sensitivity: pad centre dead-zone (px) + stick tilt threshold for direction picks */
@@ -2903,6 +2982,11 @@
            Per-match runtime state only — never saved. Seeded at the
            default guard angle; see stepBlade. */
         blade:{ang:-0.5, prev:-0.5, des:-0.5, vel:0, ana:false},
+        /* STAGE 2 DEF: the last graded physical-defense outcome for
+           this fighter ({result,tick,cross,d,postureCost,glancing})
+           — diagnostic state only, written solely by
+           resolveAnalogDefense, never read by the sim, never hashed */
+        lastDef:null,
         chokeElapsed:0, chokeEscOpen:false, chokeImmuneT:0,
         counterT:0, combo:0, comboT:0, lastHitBy:null,
         pullCd:0, specCd:0, altCd:0, dashT:0, dashDir:1, airAtkUsed:false, forceJumpUsed:false,
@@ -3494,6 +3578,150 @@
       return best;
     }
 
+    /* ================= ANALOG STAGE 2 DEF — TRUE MANUAL DEFENSE =====
+       For an ANALOG defender, blocking is PHYSICAL: the Stage 1 swept
+       test runs against the defender's AUTHORITATIVE sim blade
+       (simBladeSegments — the angle stepBlade integrates from the
+       saber stick), not the discrete guard pose. Eligibility: the
+       defender is analog-driven (blade.ana latched by playerCtl's
+       stamp), in a blocking state, and holding the GUARD modifier
+       (ctl.guard). ONLINE IS EXCLUDED (§7): isAnaDefender is false
+       while G.online, no packet field carries guard or the sim
+       angle, and online defence keeps the shipped discrete
+       resolution until Stage 6's networking audit. CPU fighters are
+       never analog-driven locally, so CPU defence is untouched
+       (analog CPU defence is Stage 5's work). All defender segments
+       count — Maul's staff rear and Ahsoka's shoto included, exactly
+       as simBladeSegments lists them. */
+    function isAnaDefender(def){
+      return !!(def&&def.blade&&def.blade.ana&&!(typeof G!=='undefined'&&G&&G.online));
+    }
+    function anaDefWorldAng(f,ang){ return Math.atan2(Math.sin(ang),(f.facing||1)*Math.cos(ang)); }
+    /* the physical twin of sweptBladeIntercept: the ATTACKER's swept
+       samples are the shipped bladeSegments path; the DEFENDER's
+       segments are the sim blade, current AND previous angle (the
+       guard blade's own sweep counts). Returns the measured contact
+       plus the quality inputs the grading reads — the folded crossing
+       factor of the two blade lines, and both blades' tip velocities
+       (the defender's from its sim prev angle) — or null when the
+       defender's blade never reaches the strike. */
+    function sweptBladeInterceptSim(f,def,dt){
+      if(!f.atk||f.state!=='attack'||!def||!def.blade)return null;
+      const dNs=simBladeSegments(def); if(!dNs.length)return null;
+      const b=def.blade, fc=def.facing||1;
+      const dPs=[];
+      for(let i=0;i<dNs.length;i++){
+        const sd=dNs[i], th=sd.ang-b.ang+b.prev, L=Math.hypot(sd.tx-sd.hx,sd.ty-sd.hy);
+        if(sd.rear){ const dx=fc*Math.cos(b.prev), dy=Math.sin(b.prev); dPs.push({hx:sd.hx,hy:sd.hy,tx:sd.hx-dx*L,ty:sd.hy-dy*L,ang:th,rear:true}); }
+        else { const dx=fc*Math.cos(th), dy=Math.sin(th); dPs.push({hx:sd.hx,hy:sd.hy,tx:sd.hx+dx*L,ty:sd.hy+dy*L,ang:th,off:sd.off}); }
+      }
+      const R=BLADE_RADIUS+6, a=f.atk;
+      let best=null;
+      const consider=(sa,ds)=>{
+        if(!sa||sa.off)return;
+        for(let di=0;di<ds.length;di++){
+          const sd=ds[di];
+          if(segSegDist(sa,sd)<=R){
+            const n=segSegNearest(sa,sd);
+            if(!best||n.d<best.d)best={x:n.x,y:n.y,d:n.d,attAng:sa.ang,thruAng:Math.atan2(n.y-sa.hy,(n.x-sa.hx)*f.facing),defAng:sd.ang,defSeg:di};
+          }
+        }
+      };
+      for(let k=0;k<5;k++){ const ss=bladeSegments(f,a.t-dt*(k*0.25)); for(const sa of ss){ consider(sa,dNs); consider(sa,dPs); } }
+      const sP=bladeSegments(f,a.t-dt), sN=bladeSegments(f,a.t);
+      for(let i=0;i<sN.length;i++){
+        if(!sN[i]||!sP[i]||sN[i].off)continue;
+        const chord={hx:sP[i].tx,hy:sP[i].ty,tx:sN[i].tx,ty:sN[i].ty,ang:sN[i].ang};
+        consider(chord,dNs); consider(chord,dPs);
+      }
+      if(!best)return null;
+      const dSeg=dNs[best.defSeg]||dNs[0], dPrev=dPs[best.defSeg]||dPs[0];
+      const aN=bladeSegments(f,a.t), aP=bladeSegments(f,a.t-dt);
+      let dvx=0,dvy=0,avx=0,avy=0;
+      if(dSeg&&dPrev&&dt>0){ dvx=(dSeg.tx-dPrev.tx)/dt; dvy=(dSeg.ty-dPrev.ty)/dt; }
+      if(aN.length&&aP.length&&aN[0]&&aP[0]&&dt>0){ avx=(aN[0].tx-aP[0].tx)/dt; avy=(aN[0].ty-aP[0].ty)/dt; }
+      const dSp=Math.hypot(dvx,dvy), aSp=Math.hypot(avx,avy);
+      best.defTipSpeed=dSp; best.attTipSpeed=aSp;
+      best.intoCos=(dSp>1&&aSp>1)?(dvx*avx+dvy*avy)/(dSp*aSp):1;
+      let dAng=Math.abs(ana2WrapPi(anaDefWorldAng(f,best.attAng)-anaDefWorldAng(def,best.defAng)));
+      if(dAng>Math.PI/2)dAng=Math.PI-dAng;
+      best.cross=Math.sin(Math.max(0,Math.min(Math.PI/2,dAng)));
+      return best;
+    }
+    const ANA_DEF_LOG=[];
+    /* GRADED DEFENSE RESOLUTION — the analog counterpart of
+       resolveStrike's parry / block branches, with the SAME shipped
+       numbers (posture formula, chip, blockstun, knockback, Force
+       gains, parry rewards, guard-break at TUNING.GUARDBREAK_TICKS):
+       only the TRIGGER is physical and the posture cost is graded.
+       A parry needs all three of: physical contact, the defender's
+       blade actively moving INTO the strike (tip speed + opposition
+       thresholds in TUNING), and contact inside the shipped 9-tick
+       fresh-guard window — no second window, no second parry system.
+       A glancing contact (shallow angle or edge-of-reach distance)
+       stops the strike at extra posture and can never parry. */
+    function resolveAnalogDefense(att,def,atkDef,ic){
+      const POST=atkDef.postureDamage!=null?atkDef.postureDamage:(atkDef.post||0);
+      const cx=ic.x, cy=ic.y;
+      /* S3 LAB snapshot + parry-attempt accounting, mirrored from
+         resolveStrike so drills and results read analog defences
+         exactly like discrete ones */
+      LAB._att={attempt:!!def.parryAttempt,delta:G.tick-def.guardSetTick,dirOk:guardDirOf(def)===atkDirOf(atkDef),atkDir:atkDirOf(atkDef),defDir:guardDirOf(def)};
+      if(def.parryAttempt&&(G.tick-def.guardSetTick)<=TUNING.PARRY_WINDOW_TICKS+6){ def.stats.parryAttempts++; def.parryAttempt=false; }
+      const glancing=ic.cross<TUNING.ANA_DEF_GLANCE_CROSS||ic.d>TUNING.ANA_DEF_GLANCE_DIST;
+      const fresh=(G.tick-def.guardSetTick)<=TUNING.PARRY_WINDOW_TICKS&&def.parryLockT<=0;
+      const activeIn=!glancing&&fresh&&ic.defTipSpeed>=TUNING.ANA_DEF_PARRY_TIP_SPEED&&ic.intoCos<=TUNING.ANA_DEF_PARRY_INTO_COS;
+      const recoilSign=(Math.sign(ana2WrapPi(anaDefWorldAng(def,ic.defAng)-anaDefWorldAng(att,ic.attAng)))||1)*(def.facing||1);
+      const logDef=(result,cost)=>{ def.lastDef={result:result,tick:G.tick,cross:Math.round(ic.cross*1000)/1000,d:Math.round(ic.d),postureCost:Math.round(cost*10)/10,glancing:result==='glance'}; ANA_DEF_LOG.push(def.lastDef); if(ANA_DEF_LOG.length>48)ANA_DEF_LOG.shift(); };
+      if(activeIn){
+        /* ACTIVE PARRY — the shipped consequences, physical trigger:
+           attacker disrupted (stagger, posture bite, bind at the
+           contact angle), defender pays NO posture, riposte window
+           opens, shipped AV (parry SFX, sparks, ring, callout,
+           hitstop, Director event) */
+        SFX.parry(); sparks(cx,cy,'#bfe6ff',26,460); ring(cx,cy,'#bfe6ff',86);
+        addFloat(def.x,def.y-196,'PARRY!','#bfe6ff',26); showCallout('PARRY!','#bfe6ff');
+        att.bindAng=ic.thruAng; att.bindX=cx; att.bindY=cy; att.bindT=0.38;
+        const ma=meetAngleFor(def,cx,cy); if(ma!=null){ def.meetAng=ma; def.meetT=0.3; def.meetX=cx; def.meetY=cy; }
+        att.posture=clamp(att.posture-POST*0.8,0,att.maxPosture||100);
+        recordExchange(att,def,atkDef,'parry',0);
+        def.riposteT=0.9; def.counterT=0.9; def.parryAttempt=false; def.stats.parries++; gainForce(def,10);
+        if(att.state==='attack'||att.state==='cast'){ att.atk=null; setState(att,'stagger'); att.stateT=-0.55; att.vx=-att.facing*120; }
+        setHitstop(3); shake=Math.max(shake,4); directorEvent('parry',cx,cy,{dir:att.facing,color:'#bfe6ff'});
+        def.blade.ang=ana2ClampArc(def.blade.ang+recoilSign*TUNING.ANA_DEF_RECOIL_LIGHT*0.5); /* a parrying blade is barely pushed — it did the pushing */
+        breakCombo(def); logDef('parry',0);
+        return 'parry';
+      }
+      /* BLOCK — clean or glancing. The strike HALTS at the contact
+         angle (contactAng, the shipped halt) so it can never pass
+         visually through the guard, and the body path is skipped by
+         the caller, so posture is charged exactly once. */
+      SFX.blockHit(); sparks(cx,cy,bladeCol(def),glancing?8:12,300);
+      if(att.atk){ att.atk.contactAng=ic.thruAng; att.atk.contactT=att.atk.t; att.atk.contactX=cx; att.atk.contactY=cy; }
+      const ma2=meetAngleFor(def,cx,cy); if(ma2!=null){ def.meetAng=ma2; def.meetT=0.28; def.meetX=cx; def.meetY=cy; }
+      const dfm=effMods(def);
+      def.hp=Math.max(0,def.hp-Math.round((atkDef.chip||0)*dfm.chipMul));
+      const postCost=POST*dfm.postTakenMul*postTakenTraitMul(def)*(def.holdT>0.6?1.35:1)*(glancing?TUNING.ANA_DEF_GLANCE_POSTURE_MUL:1);
+      def.posture-=postCost;
+      def.blockStun=Math.max(def.blockStun,.16); def.stats.blocks++;
+      def.vx=att.facing*(atkDef.kb*.45); gainForce(def,3); gainForce(att,2);
+      addFloat(def.x,def.y-190,glancing?'GLANCING BLOCK':'BLOCK',glancing?'#ffb340':'#ffd76a',glancing?14:15);
+      /* blade recoil follows the contact geometry: heavies shove the
+         guard blade further than lights, a glancing catch less */
+      const heavyPush=(atkDef.type==='heavy'||POST>=18);
+      def.blade.ang=ana2ClampArc(def.blade.ang+recoilSign*(heavyPush?TUNING.ANA_DEF_RECOIL_HEAVY:TUNING.ANA_DEF_RECOIL_LIGHT)*(glancing?0.6:1));
+      breakCombo(def);
+      if(def.posture<=0){
+        def.posture=0; SFX.breakG(); sparks(def.x,def.y-100,'#ffb340',24,420);
+        addFloat(def.x,def.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340');
+        def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); setHitstop(5); directorEvent('guardbreak',def.x,def.y-100,{dir:att.facing,color:'#ffb340'});
+      }
+      recordExchange(att,def,atkDef,'block',0);
+      logDef(glancing?'glance':'block',postCost);
+      if(def.hp<=0)koRound(att);
+      return glancing?'glance':'block';
+    }
+
     /* STAGE 2: every saber attack carries a real DIRECTION, resolved
        at swing start from the attacker's selected direction (dirSel —
        set by Z/X/C, stick tilt, or the CPU through the same ctl.dir
@@ -3705,7 +3933,12 @@
          counted here in the engine, never estimated */
       if(def.parryAttempt&&(G.tick-def.guardSetTick)<=TUNING.PARRY_WINDOW_TICKS+6){ def.stats.parryAttempts++; def.parryAttempt=false; }
       // --- PERFECT PARRY: right direction + fresh timing ---
-      if(parryCheck(def,atkDef)){
+      // (opts.anaBypass: an analog defender whose physical
+      // interception already FAILED — the strike is a clean hit by
+      // Stage 2 Def §1/§2c, so neither discrete branch may fire.
+      // Only the analog fall-through in fighterUpdate passes it;
+      // every shipped caller leaves it undefined, unchanged.)
+      if(!opts.anaBypass&&parryCheck(def,atkDef)){
         SFX.parry(); sparks(cx,cy,'#bfe6ff',26,460); ring(cx,cy,'#bfe6ff',86);
         addFloat(def.x,def.y-196,'PARRY!','#bfe6ff',26); showCallout('PARRY!','#bfe6ff');
         /* the parried blade STOPS on the defender's blade: the
@@ -3724,7 +3957,7 @@
       }
       // --- BLOCK: matching direction only. Wrong direction falls
       //     through to a clean hit — that IS the directional rule. ---
-      if(def.blocking && guardDirOf(def)===atkDirOf(atkDef) && def.state!=='choked' && !opts.unblockable && atkDef.guardType!=='Unblockable'){
+      if(!opts.anaBypass&&def.blocking && guardDirOf(def)===atkDirOf(atkDef) && def.state!=='choked' && !opts.unblockable && atkDef.guardType!=='Unblockable'){
         SFX.blockHit(); sparks(cx,cy,bladeCol(def),12,300);
         /* BLADE CONTACT HALT: the blocked swing stops ON the
            defender's blade — record the contact on the attack
@@ -3944,6 +4177,27 @@
       else LOCK.powerC=Math.min(LOCK_FILL,LOCK.powerC+add);
       return add;
     }
+    /* STAGE 2 DEF §5 — BLADE LOCK PRESSURE (analog): the contest
+       input for an analog local player. Holding the saber stick
+       pushed AT the shown pressure direction builds power at
+       TUNING.ANA_LOCK_PRESSURE_RATE per second at a full push
+       (scaled by how squarely the stick points that way); pushing
+       against it — or anywhere else — builds none. LOCK.dir is the
+       shown direction (toward the rival; the Knight/Master flip
+       reverses it to away, with the same REVERSE! callout), so the
+       shipped flip behaviour applies to pressure unchanged. No
+       button-mashing: power comes only from a held push. */
+    function lockPressureAccum(dt){
+      const f=(typeof selfF==='function')?selfF():null;
+      if(!f||!anaStick.active)return 0;
+      const fx=anaStick.qx*(f.facing||1); /* facing space: + = toward the rival */
+      const push=fx*(LOCK.dir>0?1:-1);
+      if(push<=0)return 0;
+      const add=TUNING.ANA_LOCK_PRESSURE_RATE*push*dt;
+      if(f===P)LOCK.powerP=Math.min(LOCK_FILL,LOCK.powerP+add);
+      else LOCK.powerC=Math.min(LOCK_FILL,LOCK.powerC+add);
+      return add;
+    }
     function lockCpuAccum(dt){
       if(LOCK.t<LOCK.cpu.react)return; /* honest reaction delay at lock start */
       const c=LOCK_CPU[G.diff]||LOCK_CPU[1];
@@ -3960,7 +4214,8 @@
       if(!P||!C||G.phase!=='fight'){ endBladeLock(null,true); return; }
       LOCK.t+=dt;
       for(const f of [P,C]){ f.bindT=Math.max(f.bindT,0.25); f.vx=0; } /* hold the bind pose at the contact point */
-      lockAccum(LOCK.rotP,lockInputAngle(true),true);
+      if(typeof ANA!=='undefined'&&ANA.on)lockPressureAccum(dt); /* STAGE 2 DEF §5: analog pressure replaces rotation for the local player */
+      else lockAccum(LOCK.rotP,lockInputAngle(true),true);
       if(G.versus)lockAccum(LOCK.rotC,lockInputAngle(false),false);
       else lockCpuAccum(dt);
       if(G.tick%6===0)sparks(LOCK.x,LOCK.y,'#ffd76a',5,240); /* grinding blades */
@@ -4019,8 +4274,17 @@
     function lockHudUpdate(){
       const h=$('lockHud'); if(!h||!LOCK.active)return;
       const ar=$('lockArrow'), lab=$('lockDirLab');
-      if(ar)ar.innerHTML=LOCK.dir>0?'&#8635;':'&#8634;';
-      if(lab)lab.textContent=LOCK.dir>0?'ROTATE CLOCKWISE':'ROTATE COUNTER-CLOCKWISE';
+      if(typeof ANA!=='undefined'&&ANA.on){
+        /* STAGE 2 DEF §5: in analog the shown direction is a PUSH
+           direction — the arrow points the world way to push */
+        const sf=(typeof selfF==='function')?selfF():null, sfc=sf?sf.facing:1;
+        const worldSign=sfc*(LOCK.dir>0?1:-1);
+        if(ar)ar.innerHTML=worldSign>0?'&#8594;':'&#8592;';
+        if(lab)lab.textContent=LOCK.dir>0?'PUSH TOWARD YOUR RIVAL':'PUSH AWAY FROM YOUR RIVAL';
+      }else{
+        if(ar)ar.innerHTML=LOCK.dir>0?'&#8635;':'&#8634;';
+        if(lab)lab.textContent=LOCK.dir>0?'ROTATE CLOCKWISE':'ROTATE COUNTER-CLOCKWISE';
+      }
       h.classList.toggle('cw',LOCK.dir>0); h.classList.toggle('ccw',LOCK.dir<0);
       const fp=$('lockFillP'), fc=$('lockFillC'), lt=$('lockTime');
       if(fp)fp.style.width=LOCK.powerP+'%';
@@ -4350,14 +4614,26 @@
           if(!edge('light')&&!c.light&&!c.heavy)f.chain=0;
           /* movement (analog moveX from the thumb stick scales speed;
              digital inputs drive it to full tilt exactly as before) */
+          /* STAGE 2 COMPLETION — TWIN-STICK AMENDMENT: a LOCAL ANALOG
+             fighter (blade.ana latched by the playerCtl stamp, or the
+             stamp on this very ctl; online excluded exactly as in
+             isAnaDefender, so Classic, CPU, P2 and online movement
+             are byte-identical to the shipped build) may GUARD-WALK:
+             while blocking (GUARD held) it still moves, at
+             TUNING.ANA_GUARD_WALK_MUL of its walk speed, instead of
+             rooting. Every other blocking fighter keeps the shipped
+             full stop (mv stays 0). Saber-stick deflection alone no
+             longer sets blocking at all (playerCtl), so an aiming
+             fighter walks at full speed through the branch above. */
+          const anaGW=!!(f.blade&&(f.blade.ana||(c&&c.ana))&&!(typeof G!=='undefined'&&G&&G.online));
           let mv=0;
-          if(!f.blocking){
+          if(!f.blocking||anaGW){
             if(c.left)mv-=1; if(c.right)mv+=1;
             if(typeof c.moveX==='number'&&c.moveX!==0)mv=clamp(c.moveX,-1,1);
           }
           /* S2: walk speed = the duelist's PROFILE base speed scaled
              by their form (Ataru +15%) */
-          const spd=f.blocking?60:(PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul;
+          const spd=f.blocking?(anaGW?(PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul*TUNING.ANA_GUARD_WALK_MUL:60):(PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul;
           f.vx=lerp(f.vx,mv*spd,1-Math.pow(.0001,dt));
           /* S1: locomotion changes go through the transition table
              too (setState is idempotent for the current state) */
@@ -4496,8 +4772,25 @@
                  this activation. */
               if(sweptOn()){
                 let s4resolved=false;
-                if(o.blocking&&s1Near&&sweptBladeIntercept(f,o,dt)){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); s4resolved=true; }
-                if(!s4resolved&&(boxesOverlap(hb,getHurtbox(o))||(s1Near&&sweptBladeHit(f,o,dt)))){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
+                /* STAGE 2 DEF: an ANALOG defender (local play only —
+                   isAnaDefender excludes online, §7) resolves through
+                   PHYSICAL interception: GUARD held + the sim blade
+                   actually reaching the strike grades into parry /
+                   clean block / glancing block inside
+                   resolveAnalogDefense. No reaching contact = NO
+                   block: the strike continues to the body path below
+                   with the discrete guard branches bypassed
+                   (anaBypass), landing as the clean hit §1/§2c
+                   require. Classic + CPU defenders keep the shipped
+                   Stage 4 interception line untouched. */
+                const anaDef=isAnaDefender(o);
+                if(o.blocking&&s1Near){
+                  if(anaDef){
+                    const ic=o.ctl.guard?sweptBladeInterceptSim(f,o,dt):null;
+                    if(ic){ f.atkHasHit=true; resolveAnalogDefense(f,o,a.def,ic); s4resolved=true; }
+                  }else if(sweptBladeIntercept(f,o,dt)){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); s4resolved=true; }
+                }
+                if(!s4resolved&&(boxesOverlap(hb,getHurtbox(o))||(s1Near&&sweptBladeHit(f,o,dt)))){ f.atkHasHit=true; resolveStrike(f,o,a.def,(anaDef&&o.blocking)?{type:a.type,anaBypass:true}:{type:a.type}); }
               }else{
                 /* STAGE 1 PASS — COMPATIBILITY PATH (flag OFF): the
                    pre-Stage-4 shipped resolution, verbatim — the single
@@ -10054,6 +10347,10 @@
          eligibility + the driven-track function, for the Stage 3
          proof battery */
       ANA3:ANA3,ana3Poll:ana3Poll,ana3Eligible:ana3Eligible,ana3TrackAng:ana3TrackAng,
+      /* ANALOG STAGE 2 DEF harness surface: physical interception,
+         graded defense resolution, the defense log and the Blade
+         Lock pressure contest, for the Stage 2 proof battery */
+      ANA_DEF_LOG:ANA_DEF_LOG,sweptBladeInterceptSim:sweptBladeInterceptSim,resolveAnalogDefense:resolveAnalogDefense,isAnaDefender:isAnaDefender,lockPressureAccum:lockPressureAccum,
       get ANA2(){return {cap:TUNING.ANA2_BLADE_CAP,min:TUNING.ANA2_BLADE_MIN,max:TUNING.ANA2_BLADE_MAX,def:TUNING.ANA2_DEFAULT_ANG,shotoOff:TUNING.ANA2_SHOTO_OFF};},
       /* VADER NOOOO + STICK JUMP harness surface */
       NOOO:NOOO,vaderNoBeat:vaderNoBeat,get VADER_NO_CLIP(){return VADER_NO_CLIP;},get stickJumpArmed(){return stickJumpArmed;},
