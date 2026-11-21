@@ -261,6 +261,14 @@
       #drillTools button.sel{border-color:var(--mgold-hi); color:var(--mgold-hi); background:rgba(216,191,138,.16);}
 #drillFrame{font-size:13px; font-weight:700; letter-spacing:.06em; color:#ffe9a8; text-shadow:0 1px 4px #000; margin-top:3px; min-height:16px;}
 #drillParry{font-size:13px; font-weight:700; letter-spacing:.06em; color:#bfe6ff; text-shadow:0 1px 4px #000; margin-top:1px; min-height:16px;}
+/* LAB TEXT FIX (presentation-only): the Free Practice text stack fades
+   fully away after a few idle seconds; single lab events flash on
+   #labFlash, small and high, instead of the whole stack returning.
+   The drill tools row is never faded — only the .labTxt lines are. */
+#drillHud .labTxt{transition:opacity .45s ease, visibility 0s linear 0s;}
+#drillHud.labFade .labTxt, #drillHud.labOff .labTxt{opacity:0; visibility:hidden; transition:opacity .45s ease, visibility 0s linear .45s;}
+#labFlash{position:absolute; top:112px; left:50%; transform:translateX(-50%); z-index:7; max-width:min(560px,92%); text-align:center; pointer-events:none; font-size:13px; font-weight:700; letter-spacing:.05em; line-height:1.35; color:#ffe9a8; text-shadow:0 1px 4px #000; background:rgba(8,8,12,.72); border:1px solid rgba(216,191,138,.35); border-radius:3px; padding:5px 12px; opacity:0; visibility:hidden; transition:opacity .25s ease, visibility 0s linear .25s;}
+#labFlash.on{opacity:1; visibility:visible; transition:opacity .18s ease, visibility 0s linear 0s;}
 #endRead{color:#bfe6ff; line-height:1.5; margin:8px 0 0; font-size:13.5px;}
 #endAdapt{color:#ffe9a8; line-height:1.5; margin:4px 0 0; font-size:13.5px; font-weight:600;}
       .drillBtns{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
@@ -856,13 +864,14 @@
         </div>
         <!-- STAGE 3: training drill HUD (score / instructions / dummy tools) -->
         <div id="drillHud">
-          <div id="drillTitle">TRAINING</div>
-          <div id="drillInfo">—</div>
-          <div id="drillScore">—</div>
-          <div id="drillFrame"></div>
-          <div id="drillParry"></div>
+          <div id="drillTitle" class="labTxt">TRAINING</div>
+          <div id="drillInfo" class="labTxt">—</div>
+          <div id="drillScore" class="labTxt">—</div>
+          <div id="drillFrame" class="labTxt"></div>
+          <div id="drillParry" class="labTxt"></div>
           <div id="drillTools"></div>
         </div>
+        <div id="labFlash" aria-live="polite"></div>
         <div id="kbHint">A/D move (hold away = block) · W jump · S low guard · Z/X/C direction (left/overhead/right) · J light · K heavy · L block (fresh + right direction = parry) · F / Guard during heavy startup = feint · Shift dodge · U pull · I special · O alt · T form (Shift+T back) &middot; R reset bars (practice) · Touch: thumb stick moves &middot; flick LIGHT/HEAVY to aim swings (tap = guard-pad direction) &middot; guard pad guards &middot; rotate the stick in a Blade Lock &middot; Analog scheme: strike grid (LIGHT / HEAVY / JUMP / DODGE) on the left above the movement stick, saber stick on the right</div>
 
         <!-- MATCH END: part of the fight screen, so it lives inside the
@@ -1263,6 +1272,11 @@
                   <span class="slab">BLADE LOCK STRUGGLES</span>
                   <button class="togBtn" id="setBladeLock">BLADE LOCK: ON</button>
                   <span class="sdesc">When two Heavy swings clash dead-even, the blades LOCK instead of binding instantly: rotate your stick the way the arrow shows to overpower your rival. Winning shoves them back and burns 25 Posture — no health damage. At most twice a round, never twice inside 20 seconds. Local play only — online duels keep the instant deterministic bind. OFF = heavy clashes always use the instant bind.</span></div>
+                <div class="setRow">
+                  <span class="slab">SWEPT COLLISION</span>
+                  <button class="togBtn" id="setSwept">SWEPT COLLISION: ON</button>
+                  <span class="sdesc">ON: the current swept blade collision — quarter-tick swept capsules, tip-chord coverage and blade interception resolved before body contact, so a guarded strike can never also deal body damage. OFF: the previous shipped contact path (third-point sweep, no interception priority) for comparison. The choice is read once at match start and never changes mid-fight; online duels always use the swept system so both clients resolve identically.</span>
+                </div>
                 <div class="setRow">
                   <span class="slab">GORE</span>
                   <button class="togBtn" id="setGore">GORE: ON</button>
@@ -3376,18 +3390,49 @@
       return Math.atan2(cy-sd.hy,(cx-sd.hx)*def.facing);
     }
     /* the swept test: did f's blade capsule pass through def's
-       hurtbox at any point during the last tick? dt = tick length */
+       hurtbox at any point during the last tick? dt = tick length.
+       ANALOG STAGE 4: the sweep is sampled at QUARTER-tick steps
+       (previous, ¾-back, mid, ¼-back, current) plus the tip's travel
+       chord, so the capsule covers the blade's whole swept volume
+       across the tick — a maximum-speed swing cannot tunnel through
+       the hurtbox between the shipped third-points. The quarter
+       samples are a strict superset of the shipped samples: every
+       hit the old test found, this one finds, at the same radius. */
     function sweptBladeHit(f,def,dt){
       if(!f.atk||f.state!=='attack')return false;
       const hurt=getHurtbox(def), a=f.atk;
-      const nN=bladeSegments(f,a.t), nP=bladeSegments(f,a.t-dt), nM=bladeSegments(f,a.t-dt/2);
-      if(!nN.length||!nP.length||!nM.length)return false;
+      if(!sweptOn()){
+        /* STAGE 1 PASS — COMPATIBILITY PATH (flag OFF): the pre-Stage-4
+           shipped sweep, verbatim — previous / mid / current samples
+           plus the tip chord, at the same BLADE_RADIUS. Selected only
+           by the latched flag; the ON path below is untouched. */
+        const nN=bladeSegments(f,a.t), nP=bladeSegments(f,a.t-dt), nM=bladeSegments(f,a.t-dt/2);
+        if(!nN.length||!nP.length||!nM.length)return false;
+        for(let i=0;i<nN.length;i++){
+          if(nN[i].off)continue; /* Ahsoka's shoto never deals body hits */
+          const sNow=nN[i], sPrev=nP[i], sMid=nM[i];
+          if(!sNow||!sPrev||!sMid)continue;
+          if(segBoxDist(sPrev,hurt)<=BLADE_RADIUS)return true;
+          if(segBoxDist(sMid,hurt)<=BLADE_RADIUS)return true;
+          if(segBoxDist(sNow,hurt)<=BLADE_RADIUS)return true;
+          /* the tip's own travel path between ticks */
+          if(segBoxDist({hx:sPrev.tx,hy:sPrev.ty,tx:sNow.tx,ty:sNow.ty},hurt)<=BLADE_RADIUS)return true;
+        }
+        return false;
+      }
+      const nN=bladeSegments(f,a.t), nP=bladeSegments(f,a.t-dt);
+      if(!nN.length||!nP.length)return false;
+      /* quarter-tick samples, computed explicitly — no per-call
+         fraction array / map in the contact path (Stage 1 pass audit) */
+      const nQ1=bladeSegments(f,a.t-dt*0.25), nM=bladeSegments(f,a.t-dt*0.5), nQ3=bladeSegments(f,a.t-dt*0.75);
       for(let i=0;i<nN.length;i++){
         if(nN[i].off)continue; /* Ahsoka's shoto never deals body hits */
-        const sNow=nN[i], sPrev=nP[i], sMid=nM[i];
-        if(!sNow||!sPrev||!sMid)continue;
+        const sNow=nN[i], sPrev=nP[i];
+        if(!sNow||!sPrev)continue;
         if(segBoxDist(sPrev,hurt)<=BLADE_RADIUS)return true;
-        if(segBoxDist(sMid,hurt)<=BLADE_RADIUS)return true;
+        const sQ3=nQ3[i]; if(sQ3&&segBoxDist(sQ3,hurt)<=BLADE_RADIUS)return true;
+        const sMid=nM[i]; if(sMid&&segBoxDist(sMid,hurt)<=BLADE_RADIUS)return true;
+        const sQ1=nQ1[i]; if(sQ1&&segBoxDist(sQ1,hurt)<=BLADE_RADIUS)return true;
         if(segBoxDist(sNow,hurt)<=BLADE_RADIUS)return true;
         /* the tip's own travel path between ticks */
         if(segBoxDist({hx:sPrev.tx,hy:sPrev.ty,tx:sNow.tx,ty:sNow.ty},hurt)<=BLADE_RADIUS)return true;
@@ -3405,6 +3450,48 @@
       for(const aP of aPs)for(const oN of oNs)if(segSegDist(aP,oN)<=R)return true;
       for(const aN of aNs)for(const oP of oPs)if(segSegDist(aN,oP)<=R)return true;
       return false;
+    }
+    /* ================= ANALOG STAGE 4 — WEAPON INTERCEPTION ========
+       The guard-side twin of sweptBladeHit: did the ATTACKING blade's
+       swept volume across this tick (quarter-tick samples, exactly
+       like the body sweep, plus the tip's travel chord) meet the
+       DEFENDER's blade segment(s)? The defender's blade is whatever
+       bladeSegments() poses for them — the held guard pose (blocking)
+       is the eligible defensive state the fighterUpdate caller gates
+       on; a defender whose own attack is live is the clash branch's
+       domain, resolved earlier by the shipped priority. Ahsoka's
+       shoto CAN catch (it is a contact segment by the shipped rule)
+       but never strikes, so attacker-side off-hand segments are
+       skipped, exactly as in sweptBladeHit. Returns the measured
+       contact (segSegNearest midpoint + the attacker's halt angle
+       through the point, the bladeContact record shape) or null.
+       Pure arithmetic on sim state — deterministic, no new state:
+       the resolution it triggers writes the shipped hashed contact
+       state (contactAng / bind / meet) inside resolveStrike. */
+    function sweptBladeIntercept(f,def,dt){
+      if(!f.atk||f.state!=='attack'||!def)return null;
+      const dNs=bladeSegments(def); if(!dNs.length)return null;
+      const R=BLADE_RADIUS+6, a=f.atk;
+      let best=null;
+      const consider=(sa)=>{
+        if(!sa||sa.off)return;
+        for(const sd of dNs){
+          if(segSegDist(sa,sd)<=R){
+            const n=segSegNearest(sa,sd);
+            if(!best||n.d<best.d)best={x:n.x,y:n.y,d:n.d,attAng:sa.ang,thruAng:Math.atan2(n.y-sa.hy,(n.x-sa.hx)*f.facing)};
+          }
+        }
+      };
+      for(let k=0;k<5;k++){ const ss=bladeSegments(f,a.t-dt*(k*0.25)); for(const sa of ss)consider(sa); } /* fractions computed inline — no per-call array (Stage 1 pass audit) */
+      /* the tip's travel chord between ticks: a blade whose tip
+         jumps clean over the guard line between samples still
+         crossed it, and the chord is the crossing */
+      const sP=bladeSegments(f,a.t-dt), sN=bladeSegments(f,a.t);
+      for(let i=0;i<sN.length;i++){
+        if(!sN[i]||!sP[i]||sN[i].off)continue;
+        consider({hx:sP[i].tx,hy:sP[i].ty,tx:sN[i].tx,ty:sN[i].ty,ang:sN[i].ang});
+      }
+      return best;
     }
 
     /* STAGE 2: every saber attack carries a real DIRECTION, resolved
@@ -4354,6 +4441,16 @@
              explicit guard keeps the shipped read). */
           if(!f.atkHasHit){
             const hb=getHitbox(f);
+            /* STAGE 1 PASS — BROAD PHASE: one cheap range rejection for
+               every narrow-phase sweep below. Contact is geometrically
+               impossible beyond 300px of origin separation: the longest
+               blade reach is hilt offset (~28) + blade (106) + capsule
+               radius (26) + bind margin (6) on the attacker and hilt +
+               staff rear (80) / blade (106) on the defender — under
+               300 in the worst pairing, and the AABB band gate (max
+               range 150 + hurtbox half-width 26) rejects far earlier.
+               Behaviour-identical: past this gate no sweep can fire. */
+            const s1Near=Math.abs(f.x-o.x)<=300;
             if(hb&&a.activeTick<0)a.activeTick=G.tick;
             /* ---- STAGE 2 CLASH/BIND: two live saber hitboxes
                overlapping in the same window bind BEFORE either can
@@ -4371,12 +4468,44 @@
               /* S1: the bind triggers on the shipped box overlap OR
                  the swept blade segments meeting (hilt→tip capsules
                  within bind distance during simultaneous ActiveFrames) */
-              if(ob&&(boxesOverlap(hb,ob)||sweptBladeClash(f,o,dt))){ if(o.atk.activeTick<0)o.atk.activeTick=G.tick; resolveClash(f,o); break; }
+              if(ob&&(boxesOverlap(hb,ob)||(s1Near&&sweptBladeClash(f,o,dt)))){ if(o.atk.activeTick<0)o.atk.activeTick=G.tick; resolveClash(f,o); break; }
             }
             if(hb&&o.invulnT<=0&&o.state!=='choked'&&!isOut(o)&&!(o.y<GROUND-70&&a.type==='low')){
-              /* S1 SWEPT COLLISION: band AABB (the AttackData gate) OR
-                 the blade capsule swept along hilt→tip since last tick */
-              if(boxesOverlap(hb,getHurtbox(o))||sweptBladeHit(f,o,dt)){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
+              /* ANALOG STAGE 4 — CONTACT PRIORITY, in the brief's
+                 exact order. (a) ELIGIBILITY is the gate around this
+                 whole block: live hitbox (active frames), one hit
+                 per activation via f.atkHasHit, target guards above.
+                 The CLASH branch just above is (b) against the
+                 defender's own ACTIVE blade. (b) INTERCEPTION: if
+                 the defender is in the eligible defensive state —
+                 BLOCKING, guard pose held — and this swing's SWEPT
+                 blade met the defender's blade this tick, the strike
+                 is intercepted AT the contact: it resolves through
+                 (c) — resolveStrike's existing directional guard /
+                 perfect-parry / guard-break logic, window untouched —
+                 and the body path (d) is SKIPPED for this contact, so
+                 an intercepted strike can never also deal body damage
+                 or double-count posture through the hurtbox. A
+                 blocked or parried strike likewise ends here.
+                 (d) BODY: the shipped path — band AABB (the
+                 AttackData gate) OR the swept blade capsule — for
+                 every contact interception did not claim (unguarded
+                 defender, or a guard whose blade the swing never
+                 touched). One contact, one event: whichever branch
+                 fires latches f.atkHasHit, and no branch re-runs for
+                 this activation. */
+              if(sweptOn()){
+                let s4resolved=false;
+                if(o.blocking&&s1Near&&sweptBladeIntercept(f,o,dt)){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); s4resolved=true; }
+                if(!s4resolved&&(boxesOverlap(hb,getHurtbox(o))||(s1Near&&sweptBladeHit(f,o,dt)))){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
+              }else{
+                /* STAGE 1 PASS — COMPATIBILITY PATH (flag OFF): the
+                   pre-Stage-4 shipped resolution, verbatim — the single
+                   band-AABB-or-swept branch, no interception priority.
+                   resolveStrike's own guard / parry logic decides the
+                   outcome exactly as it did at pre-analog-s4-v50. */
+                if(boxesOverlap(hb,getHurtbox(o))||(s1Near&&sweptBladeHit(f,o,dt))){ f.atkHasHit=true; resolveStrike(f,o,a.def,{type:a.type}); }
+              }
             }
           }
           if(f.state!=='attack')break; /* parried mid-swing: stagger owns the fighter now, no same-tick cancel out of it */
@@ -6910,6 +7039,90 @@
        not attrition. Every drill has a start, a live score, a
        success/failure end state, retry and exit. */
     let TR=null;
+    /* LAB TEXT FIX (presentation-only — reads sim state, never writes
+       it): LABTEXT_ON is a session-only toggle. In Free Practice the
+       text stack shows on entry, then fades completely after ~4s with
+       no lab event; a lab event (exchange / parry verdict / guard
+       break / practice message) flashes ONLY its own line on #labFlash
+       for ~1.5s. Scored drills keep their stack (no auto-fade); the
+       toggle still hides it there. */
+    let LABTEXT_ON=true;
+    const LABUI={enteredAt:0,lastEventAt:0,flashUntil:0,stackGone:false,lastKey:'',lastParryTick:-999999,lastSay:'',prevPState:'',prevCState:''};
+    function labFlashShow(text,color){
+      const lf=$('labFlash'); if(!lf)return;
+      lf.textContent=text; if(color)lf.style.color=color;
+      lf.classList.add('on'); LABUI.flashUntil=G.time+1.5;
+    }
+    function labResetEntry(){
+      LABUI.enteredAt=G.time; LABUI.lastEventAt=0; LABUI.flashUntil=0; LABUI.stackGone=false;
+      /* seed the seen-markers from any exchange already on record so
+         (re)showing the stack never replays a stale event as a flash */
+      LABUI.lastKey=LAB.last?(LAB.last.tick+'|'+LAB.last.move+'|'+LAB.last.result+'|'+LAB.last.byPlayer):'';
+      LABUI.lastParryTick=LAB.parry?LAB.parry.tick:-999999; LABUI.lastSay='';
+      LABUI.prevPState=P?P.state:''; LABUI.prevCState=C?C.state:'';
+      const lf=$('labFlash'); if(lf)lf.classList.remove('on');
+      const dh=$('drillHud'); if(dh){ dh.classList.remove('labFade'); dh.classList.toggle('labOff',!LABTEXT_ON); }
+    }
+    function labUiTick(){
+      /* called from updateDrillHud (presentation path only) */
+      const dh=$('drillHud'); if(!dh||!TR)return;
+      /* game-time clock (seconds): the fade/flash timers run on the
+         same clock as the drill say-timers, so they advance exactly
+         when the practice sim advances */
+      const now=G.time;
+      if(!LABTEXT_ON){
+        dh.classList.add('labOff'); dh.classList.remove('labFade');
+        const lf=$('labFlash'); if(lf)lf.classList.remove('on');
+        /* keep the seen-markers current so re-enabling does not replay
+           a stale event as a fresh flash */
+        if(LAB.last)LABUI.lastKey=LAB.last.tick+'|'+LAB.last.move+'|'+LAB.last.result+'|'+LAB.last.byPlayer;
+        if(LAB.parry)LABUI.lastParryTick=LAB.parry.tick;
+        LABUI.lastSay=TR.say||'';
+        return;
+      }
+      dh.classList.remove('labOff');
+      if(TR.id!=='free'){ dh.classList.remove('labFade'); return; }
+      let flashTxt=null, flashColor='#ffe9a8';
+      if(LAB.last){
+        const key=LAB.last.tick+'|'+LAB.last.move+'|'+LAB.last.result+'|'+LAB.last.byPlayer;
+        if(key!==LABUI.lastKey){
+          LABUI.lastKey=key;
+          flashTxt=(LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' '+LAB.last.dir.toUpperCase()+' — '+LAB.last.result.toUpperCase()+' · '+(LAB.last.adv>=0?'+':'−')+Math.abs(LAB.last.adv)+'f FOR YOU';
+          flashColor=LAB.last.result==='parry'?'#bfe6ff':'#ffe9a8';
+        }
+      }
+      if(LAB.parry&&LAB.parry.tick!==LABUI.lastParryTick){
+        const freshParry=LAB.parry.tick!==LABUI.lastParryTick;
+        LABUI.lastParryTick=LAB.parry.tick;
+        /* a parry verdict tied to the exchange just flashed replaces
+           it (it is that event's feedback); a standalone verdict
+           (parry whiff) flashes on its own */
+        if(freshParry&&(flashTxt||!LAB.last||LAB.parry.tick>=LAB.last.tick)){ flashTxt=LAB.parry.txt; flashColor='#bfe6ff'; }
+      }
+      if(P&&C){
+        if(P.state==='guardbreak'&&LABUI.prevPState!=='guardbreak'){ flashTxt='GUARD BREAK — YOU ARE OPEN!'; flashColor='#ffb340'; }
+        if(C.state==='guardbreak'&&LABUI.prevCState!=='guardbreak'){ flashTxt='GUARD BREAK — DUMMY IS OPEN!'; flashColor='#ffb340'; }
+        LABUI.prevPState=P.state; LABUI.prevCState=C.state;
+      }
+      if(TR.say&&TR.say!==LABUI.lastSay&&TR.sayT>G.time){ flashTxt=TR.say; flashColor='#fff'; }
+      LABUI.lastSay=TR.say||'';
+      if(flashTxt){
+        LABUI.lastEventAt=now;
+        /* an event during the entry grace period just extends the
+           stack's showing (its line is already in the stack); once the
+           stack is gone, an event flashes ONLY its own line — the
+           stack itself never reappears as a block */
+        if(LABUI.stackGone)labFlashShow(flashTxt,flashColor);
+      }
+      const lf=$('labFlash'); if(lf&&now>LABUI.flashUntil)lf.classList.remove('on');
+      if(LABUI.stackGone){ dh.classList.add('labFade'); }
+      else{
+        const idleSince=Math.max(LABUI.enteredAt,LABUI.lastEventAt);
+        const fade=now-idleSince>4;
+        if(fade)LABUI.stackGone=true;
+        dh.classList.toggle('labFade',fade);
+      }
+    }
     const DRILL_NAMES={free:'FREE PRACTICE',parry:'PARRY DRILL',guard:'DIRECTIONAL GUARD DRILL',feint:'FEINT / PUNISH DRILL',combo:'COMBO DRILL',force:'FORCE COUNTER DRILL'};
     const DRILL_SUB={free:'REAL ENGINE · DUMMY UNDER YOUR CONTROL',parry:'PASS: 7 CLEAN PARRIES OF 10',guard:'PASS: 8 GUARDED OF 12',feint:'PASS: 4 POINTS FROM 8 HEAVIES',combo:'COMPLETE THE STRING TWICE',force:'PASS: 5 COUNTERS OF 8'};
     const dirName=d=>({left:'LEFT ◀',right:'RIGHT ▶',overhead:'OVERHEAD ▲',low:'LOW ▼'})[d]||String(d||'').toUpperCase();
@@ -6924,6 +7137,7 @@
     }
     function castName(f,kind){ return kind==='pull'?'FORCE PULL':kind==='spec'?f.cfg.specName:f.cfg.altName; }
     function startTraining(id){
+      latchSwept(); /* STAGE 1 PASS: training is a match start for the flag latch */
       NET_SABERS=null; _saberSig='';
       audioInit(); fadeOutMenuTheme();
       G.cumP=freshStats(); G.cumC=freshStats();
@@ -6944,11 +7158,12 @@
       hudEls.nameR.innerHTML=C.cfg.name+' <span class="side">TRAINING DUMMY</span>';
       $('drillHud').classList.add('on');
       buildDrillTools();
+      labResetEntry();
       announce(DRILL_NAMES[id]+'<small>'+DRILL_SUB[id]+'</small>',1500);
     }
     function exitTraining(){
       TR=null;
-      $('drillHud').classList.remove('on'); $('drillScreen').classList.add('hidden');
+      $('drillHud').classList.remove('on','labFade','labOff'); const _lf=$('labFlash'); if(_lf)_lf.classList.remove('on'); $('drillScreen').classList.add('hidden');
       $('hud').classList.remove('on'); $('controls').classList.remove('on'); $('topBtns').classList.remove('on');
       G.mode='menu'; G.phase='idle'; clearAllInputs(); fitArena(); setHum(false);
       $('menu').classList.remove('hidden');
@@ -6984,6 +7199,9 @@
         if(TR.dummyMode==='attack')mk('PATTERN: '+TR.dummyPattern.toUpperCase(),()=>{ const seq=['light','heavy','low','mix']; TR.dummyPattern=seq[(seq.indexOf(TR.dummyPattern)+1)%4]; buildDrillTools(); });
         mk('RESET BARS (R)',()=>{ practiceReset(); });
         mk(G.debugHitboxes?'VISUALIZER: ON':'VISUALIZER: OFF',()=>{ setHitboxDebug(!G.debugHitboxes); buildDrillTools(); });
+        mk(LABTEXT_ON?'LAB TEXT: ON':'LAB TEXT: OFF',()=>{ LABTEXT_ON=!LABTEXT_ON; if(LABTEXT_ON)labResetEntry(); buildDrillTools(); });
+      } else {
+        mk(LABTEXT_ON?'LAB TEXT: ON':'LAB TEXT: OFF',()=>{ LABTEXT_ON=!LABTEXT_ON; if(LABTEXT_ON)labResetEntry(); buildDrillTools(); });
       }
       mk('EXIT',()=>exitTraining());
     }
@@ -6991,6 +7209,7 @@
       const dh=$('drillHud'); if(!dh)return;
       if(!TR){ dh.classList.remove('on'); return; }
       dh.classList.add('on');
+      labUiTick();
       $('drillTitle').textContent=DRILL_NAMES[TR.id];
       const say=(TR.sayT>G.time)?TR.say:null;
       let info='', score='';
@@ -7201,7 +7420,7 @@
     }
 
     /* ================= GAME FLOW ================= */
-    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'duel',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,cumP:null,cumC:null,online:false,localSlot:'P',pChar:'vader',cChar:'obi',oppChar:'obi',seed:0,forfeitWin:false,startForms:{vader:'V',obi:'III',maul:'VII',ahsoka:'V',dooku:'II',sidious:'VII',inaam:'V'},finishers:true,cineIntros:true,introDur:1.35,bladeLock:true,gore:true,scheme:'classic'};
+    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'duel',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,cumP:null,cumC:null,online:false,localSlot:'P',pChar:'vader',cChar:'obi',oppChar:'obi',seed:0,forfeitWin:false,startForms:{vader:'V',obi:'III',maul:'VII',ahsoka:'V',dooku:'II',sidious:'VII',inaam:'V'},finishers:true,cineIntros:true,introDur:1.35,bladeLock:true,gore:true,scheme:'classic',sweptCollision:true};
     /* ================= SETTINGS SAVE (versioned, Stage 3) =================
        One versioned settings object. v1 (pre-Stage-3 saves, if any)
        had no layout field — migration fills new fields from defaults
@@ -7209,7 +7428,7 @@
        mode) degrades to session-only settings, never an error. */
     const SAVE_KEY='galactic-fueled-duelists.settings';
     const SAVE_VERSION=2;
-    let SAVE={v:SAVE_VERSION,muted:false,fx:'auto',diff:1,layout:'guard',debugHitboxes:false,volume:1,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,arch:'auto',adaptive:false,finishers:true,cine:true,bladeLock:true,gore:true,p2Touch:false,scheme:'classic',anaSize:'m',anaSens:1,anaDead:0.18,anaOffX:0,anaOffY:0,anaInd:true,sabers:{vader:{hilt:'standard',color:'red'},obi:{hilt:'standard',color:'blue'},maul:{hilt:'standard',color:'red'},ahsoka:{hilt:'standard',color:'white'},dooku:{hilt:'curved',color:'red'},sidious:{hilt:'standard',color:'red'},inaam:{hilt:'standard',color:'orange'}}};
+    let SAVE={v:SAVE_VERSION,muted:false,fx:'auto',diff:1,layout:'guard',debugHitboxes:false,volume:1,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,arch:'auto',adaptive:false,finishers:true,cine:true,bladeLock:true,gore:true,sweptCollision:true,p2Touch:false,scheme:'classic',anaSize:'m',anaSens:1,anaDead:0.18,anaOffX:0,anaOffY:0,anaInd:true,sabers:{vader:{hilt:'standard',color:'red'},obi:{hilt:'standard',color:'blue'},maul:{hilt:'standard',color:'red'},ahsoka:{hilt:'standard',color:'white'},dooku:{hilt:'curved',color:'red'},sidious:{hilt:'standard',color:'red'},inaam:{hilt:'standard',color:'orange'}}};
     function loadSave(){
       try{
         const raw=window.localStorage.getItem(SAVE_KEY); if(!raw)return;
@@ -7233,6 +7452,7 @@
         SAVE.cine=SAVE.cine!==false; /* cinematic intro defaults ON for older saves */
         SAVE.p2Touch=!!SAVE.p2Touch; /* S5: P2 touch cluster defaults OFF, older saves included */
         SAVE.bladeLock=SAVE.bladeLock!==false; /* BLADE LOCK defaults ON for older saves */
+        SAVE.sweptCollision=SAVE.sweptCollision!==false; /* STAGE 1 PASS: SWEPT COLLISION defaults ON for older saves (default-fill only) */
         SAVE.gore=SAVE.gore!==false; /* GORE defaults ON for older saves */
         /* ANALOG STAGE A fields migrate in with defaults — default-fill
            ONLY: a save from before the Analog scheme loads on Classic
@@ -7256,7 +7476,7 @@
     function persistSave(){
       if(!saveReady)return;
       try{
-        SAVE.v=SAVE_VERSION; SAVE.muted=muted; SAVE.fx=G.fx; SAVE.diff=G.diff; SAVE.layout=G.layout; SAVE.debugHitboxes=G.debugHitboxes; SAVE.volume=masterVol; SAVE.shake=G.shake; SAVE.ctlSize=G.ctlSize; SAVE.guardSens=G.guardSens; SAVE.cbSymbols=G.cbSymbols; SAVE.reducedMotion=G.reducedMotion; SAVE.arch=aiArchSel; SAVE.adaptive=ADAPT.on; SAVE.finishers=G.finishers; SAVE.cine=G.cineIntros; SAVE.bladeLock=G.bladeLock; SAVE.gore=G.gore; SAVE.scheme=G.scheme||'classic'; if(typeof ANA!=='undefined'){ SAVE.anaSize=ANA.size; SAVE.anaSens=ANA.sens; SAVE.anaDead=ANA.dead; SAVE.anaOffX=ANA.offX; SAVE.anaOffY=ANA.offY; SAVE.anaInd=ANA.ind; } SAVE.sabers=JSON.parse(JSON.stringify(SABER_CFG));
+        SAVE.v=SAVE_VERSION; SAVE.muted=muted; SAVE.fx=G.fx; SAVE.diff=G.diff; SAVE.layout=G.layout; SAVE.debugHitboxes=G.debugHitboxes; SAVE.volume=masterVol; SAVE.shake=G.shake; SAVE.ctlSize=G.ctlSize; SAVE.guardSens=G.guardSens; SAVE.cbSymbols=G.cbSymbols; SAVE.reducedMotion=G.reducedMotion; SAVE.arch=aiArchSel; SAVE.adaptive=ADAPT.on; SAVE.finishers=G.finishers; SAVE.cine=G.cineIntros; SAVE.bladeLock=G.bladeLock; SAVE.gore=G.gore; SAVE.sweptCollision=G.sweptCollision!==false; SAVE.scheme=G.scheme||'classic'; if(typeof ANA!=='undefined'){ SAVE.anaSize=ANA.size; SAVE.anaSens=ANA.sens; SAVE.anaDead=ANA.dead; SAVE.anaOffX=ANA.offX; SAVE.anaOffY=ANA.offY; SAVE.anaInd=ANA.ind; } SAVE.sabers=JSON.parse(JSON.stringify(SABER_CFG));
         window.localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE));
       }catch(e){ /* storage blocked — session-only */ }
       persistLastSetup();
@@ -7353,7 +7573,8 @@
     }
     function freshStats(){ return {parries:0,parryAttempts:0,blocks:0,hits:0,punishes:0,maxCombo:0,pulls:0,specs:0}; }
     function startMatch(){
-      TR=null; CINE.pending=true; /* CINEMATIC INTRO: armed here — startRound round 1 consumes it; drills never call startMatch */ $('drillHud').classList.remove('on'); $('drillScreen').classList.add('hidden');
+      latchSwept(); /* STAGE 1 PASS: the swept-collision flag is read once, here, for the whole match */
+      TR=null; CINE.pending=true; /* CINEMATIC INTRO: armed here — startRound round 1 consumes it; drills never call startMatch */ $('drillHud').classList.remove('on','labFade','labOff'); const _lf2=$('labFlash'); if(_lf2)_lf2.classList.remove('on'); $('drillScreen').classList.add('hidden');
       G.winsP=0; G.winsC=0; G.round=1;
       G.cumP=freshStats(); G.cumC=freshStats(); /* results stats accumulate across the match's rounds */
       ADAPT.level=0; ADAPT.streak=0; ADAPT.lastMove=''; /* S3: adaptive drift is per-match; the ON/OFF choice itself persists */
@@ -7871,6 +8092,24 @@
        before the input reaches the (already finished) fight */
     window.addEventListener('pointerdown',()=>{ if(FIN.active&&FIN.t>0.5)endFinisher(); },true);
     window.addEventListener('keydown',()=>{ if(FIN.active&&FIN.t>0.5)endFinisher(); },true);
+    /* ================= STAGE 1 COMPLETION PASS — SWEPT COLLISION FLAG ===
+       The compatibility flag the Stage 1 spec requires. G.sweptCollision
+       is the LIVE setting (Settings toggle, persisted by default-fill —
+       older saves load ON, nothing they hold is rewritten). It is read
+       ONCE per match by latchSwept() at match start (startMatch /
+       startTraining) into SWEPT_LATCHED, so a mid-match Settings change
+       applies to the NEXT match and can never alter a fight in progress.
+       ONLINE: the flag is ignored — sweptOn() is always true while
+       G.online, so both lockstep clients resolve contact identically;
+       no packet or protocol field carries it. */
+    let SWEPT_LATCHED=true;
+    function sweptOn(){ return G.online?true:SWEPT_LATCHED; }
+    function latchSwept(){ SWEPT_LATCHED=G.online?true:(G.sweptCollision!==false); }
+    function setSweptCollision(v){
+      G.sweptCollision=!!v;
+      const b=$('setSwept'); if(b){ b.textContent='SWEPT COLLISION: '+(G.sweptCollision?'ON':'OFF'); b.classList.toggle('off',!G.sweptCollision); }
+      persistSave();
+    }
     function setBladeLock(v){
       G.bladeLock=!!v;
       const b=$('setBladeLock'); if(b){ b.textContent='BLADE LOCK: '+(G.bladeLock?'ON':'OFF'); b.classList.toggle('off',!G.bladeLock); }
@@ -8692,6 +8931,8 @@
     if(finBtn)finBtn.addEventListener('click',()=>{ audioInit(); setFinishers(!G.finishers); });
     const bladeLockBtn=$('setBladeLock');
     if(bladeLockBtn)bladeLockBtn.addEventListener('click',()=>{ audioInit(); setBladeLock(!G.bladeLock); });
+    const sweptBtn=$('setSwept');
+    if(sweptBtn)sweptBtn.addEventListener('click',()=>{ audioInit(); setSweptCollision(!G.sweptCollision); });
     const goreBtn=$('setGore');
     if(goreBtn)goreBtn.addEventListener('click',()=>{ audioInit(); setGore(!G.gore); });
     /* hitbox debug (training aid, Stage 1): one flag, two toggles —
@@ -8723,6 +8964,8 @@
     try{ setScheme(SAVE.scheme); setAnaSize(SAVE.anaSize); setAnaSens(SAVE.anaSens); setAnaDead(SAVE.anaDead); setAnaOff(SAVE.anaOffX,SAVE.anaOffY); setAnaInd(SAVE.anaInd); }catch(e){}
     /* S4 boot apply: saber builds + finisher switch (still pre-saveReady, so nothing clobbers) */
     try{ applySavedSabers(); setFinishers(SAVE.finishers); setCine(SAVE.cine); setBladeLock(SAVE.bladeLock); setGore(SAVE.gore); }catch(e){}
+    /* STAGE 1 PASS boot apply: swept-collision flag (own isolated group, same pattern) */
+    try{ setSweptCollision(SAVE.sweptCollision); }catch(e){}
     saveReady=true; persistSave();
     /* MENU CLEANUP boot: restore the last-used duel setup (new key;
        the settings save above was already applied and is untouched) */
@@ -8840,7 +9083,7 @@
     function toMenu(){
       if(G.online){ onlineDeclineMatch(); return; }
       G.paused=false; TR=null; RUN=null; G.versus=false; G.cpuChar=null; G.winTarget=2; document.body.classList.remove('versus-on'); clearAllInputs(); cineEnd();
-      $('drillHud').classList.remove('on'); $('drillScreen').classList.add('hidden');
+      $('drillHud').classList.remove('on','labFade','labOff'); const _lf3=$('labFlash'); if(_lf3)_lf3.classList.remove('on'); $('drillScreen').classList.add('hidden');
       $('pauseScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
       $('endMenuBtn').textContent='MENU'; const _cbR=$('changeBtn'); if(_cbR){ _cbR.style.display=''; _cbR.textContent='SELECT FIGHTER'; } $('rematchBtn').textContent='REMATCH'; const _erR=$('endRun'); if(_erR)_erR.textContent='';
       $('hud').classList.remove('on'); $('controls').classList.remove('on'); $('topBtns').classList.remove('on');
@@ -9822,7 +10065,7 @@
       /* S2 harness surface: forms, profiles, cast path, lightning */
       FORMS:FORMS,FORM_ORDER:FORM_ORDER,PROFILES:PROFILES,unlockedForms:unlockedForms,effMods:effMods,nextForm:nextForm,castAttempt:castAttempt,resolveBolt:resolveBolt,altNameFor:altNameFor,altCostFor:altCostFor,specCostFor:specCostFor,pullCostFor:pullCostFor,refreshFormPicker:refreshFormPicker,
       setState:setState,startAttack:startAttack,resolveClash:resolveClash,fighterUpdate:fighterUpdate,makeFighter:makeFighter,
-      getHitbox:getHitbox,getHurtbox:getHurtbox,boxesOverlap:boxesOverlap,bladeSegment:bladeSegment,sweptBladeHit:sweptBladeHit,sweptBladeClash:sweptBladeClash,segBoxDist:segBoxDist,segSegDist:segSegDist,segSegNearest:segSegNearest,bladeContact:bladeContact,meetAngleFor:meetAngleFor,guardTypeForDir:guardTypeForDir,staminaCostOf:staminaCostOf,ATK:ATK};
+      getHitbox:getHitbox,getHurtbox:getHurtbox,boxesOverlap:boxesOverlap,bladeSegment:bladeSegment,sweptBladeHit:sweptBladeHit,sweptBladeClash:sweptBladeClash,sweptBladeIntercept:sweptBladeIntercept,sweptOn:sweptOn,setSweptCollision:setSweptCollision,get sweptLatched(){return SWEPT_LATCHED;},segBoxDist:segBoxDist,segSegDist:segSegDist,segSegNearest:segSegNearest,bladeContact:bladeContact,meetAngleFor:meetAngleFor,guardTypeForDir:guardTypeForDir,staminaCostOf:staminaCostOf,ATK:ATK};
     </script>
   </body>
 </html>
