@@ -1924,6 +1924,12 @@
        exact commands the guard pad produces in Classic Controls.
        Attacks NEVER initiate from stick motion (that is a later
        stage) and nothing new enters packCtl.
+       STAGE 3 (user Stage 3) UPDATE: that later stage is here — the
+       saber stick now ALSO slashes. Recognition lives in ana3Poll
+       (called from playerCtl below): it reads the sim blade's actual
+       travel and fires through the flick channel, so a recognised
+       gesture enters the exact discrete command stream a flick
+       produces and nothing new enters packCtl in this stage either.
        STAGE B (user Stage 2) UPDATE: the aim is no longer
        presentation-only. playerCtl also stamps the continuous desired
        angle onto its ctl (local play only), and the authoritative
@@ -2076,6 +2082,174 @@
        the ctl it returns (ctl.anaAng, local play only; the online
        packet is untouched, so online derives the desired angle from
        the packed guard sector inside stepBlade). */
+    /* ================= ANALOG STAGE 3 — MANUAL SLASHING =================
+       In Analog Saber Controls the right saber stick ATTACKS: a slash
+       of the stick is recognised from the Stage 2 blade state's
+       ACTUAL travel and committed through the EXISTING startAttack
+       path — identical frame data, stamina costs, chain rules, feint
+       rules and form modifiers, because the gesture fires the same
+       discrete command a flick of the strike buttons produces
+       (flickFire pulse + direction latch, consumed by playerCtl
+       below into ctl.light / ctl.heavy + atkDir). No new damage
+       numbers, no new stamina pool, no packet change: packCtl drops
+       the ctl.ana3 stamp by construction, exactly like ctl.anaAng,
+       so online a gesture is just the discrete command and the
+       continuous trajectory stays local.
+       RECOGNITION (ana3Poll, once per playerCtl call): samples
+       {tick, blade ang, blade des, facing-space stick axes} for the
+       LOCAL fighter while it is gesture-eligible — Idle / Moving /
+       Blocking only (the locomotion states; blocking is their
+       overlay), never during hitstun, casts, Blade Lock, an ongoing
+       attack, GuardBroken, finishers or the duel pose. Ineligible
+       ticks CLEAR the window, and every tick spent in 'attack'
+       re-arms the refractory, so re-triggering is impossible until
+       the started attack ends + ANA3_REFRACT_TICKS.
+       A SLASH fires when the bounded window (ANA3_WINDOW_TICKS)
+       holds total angular travel >= ANA3_MIN_ARC, directional
+       consistency |net|/total >= ANA3_CONSISTENCY and peak angular
+       velocity >= ANA3_MIN_PEAK_VEL — random waggle reverses
+       direction inside the window, so its consistency collapses and
+       it can never fire. Two further gates keep the travel honest:
+       it must be STICK-DRIVEN (the saber stick itself deflected,
+       ANA3_MIN_STICK_MAG, including at the peak-velocity step) and
+       the desired angle must genuinely sweep (ANA3_MIN_DES_EXC) —
+       blade travel nobody commanded (a block press snapping the
+       guard anchor under a neutral stick, a post-hitstun re-seed
+       toward a held aim) is refused. The gate's first pass opens a commit
+       window (ANA3_COMMIT_TICKS) so the gesture's full energy can
+       declare itself before the light/heavy split is taken. FAMILY comes from the COMMANDED trajectory
+       (the desired angle is part of the blade state: f.blade.des):
+       the blade tip's displacement between the window's first
+       desired angle and the farthest desired angle the window
+       reaches, latched when the candidate opens so the sliding
+       window can never rewrite it mid-gesture, resolved by
+       DOMINANCE — the larger component wins: tip travel DOWN =
+       OVERHEAD, UP = LOW, TOWARD the opponent = RIGHT forehand,
+       AWAY = LEFT backhand. ENERGY is
+       the window's total arc: >= ANA3_HEAVY_ARC commits the heavy.
+       A JAB (short, fast, mostly straight — see TUNING) commits
+       Count Dooku's THRUST heavy; for every other fighter it
+       resolves to a RIGHT forehand light.
+       On a fire, the record of the gesture (family, energy, end
+       angle, follow-through) is stamped onto this tick's ctl as
+       ctl.ana3; startAttack attaches it to the attack it starts, and
+       bladeSegment + both pose layers then DRIVE the blade along
+       that trajectory (ana3TrackAng) instead of the canned arc.
+       Button / flick / CPU / online attacks never carry the stamp
+       and keep the shipped geometry exactly. */
+    const ANA3={f:null,hist:[],refr:0,fire:null,cand:null};
+    function ana3Eligible(f){
+      if(!f||!f.blade)return false;
+      if(f._fin||f._duel)return false;
+      if(typeof LOCK!=='undefined'&&LOCK&&LOCK.active)return false;
+      return f.state==='idle'||f.state==='walk'||f.state==='crouch';
+    }
+    function ana3Fire(fam,heavy,f,arc,dirSign,endAng){
+      const dir=fam==='thrust'?'right':fam;
+      flickFire(false,heavy?'heavy':'light',dir,null); /* the same discrete command a button flick produces */
+      ANA3.fire={fam:fam,heavy:heavy,dir:dir,arc:arc,dirSign:dirSign,p0:endAng,
+        ft:clamp(arc*TUNING.ANA3_FOLLOW_FRAC,TUNING.ANA3_FOLLOW_MIN,TUNING.ANA3_FOLLOW_MAX)};
+      ANA3.hist.length=0; /* the gesture is consumed, fired or not */
+      ANA3.cand=null;
+      ANA3.refr=G.tick+TUNING.ANA3_REFRACT_TICKS;
+    }
+    function ana3Poll(){
+      ANA3.fire=null;
+      if(!ANA.on)return;
+      if(typeof G==='undefined'||!G||G.mode!=='fight'||G.phase!=='fight')return;
+      const f=(typeof selfF==='function')?selfF():null;
+      if(!f||!f.blade)return;
+      if(ANA3.f!==f){ ANA3.f=f; ANA3.hist.length=0; ANA3.refr=0; ANA3.cand=null; }
+      const tk=G.tick;
+      if(!ana3Eligible(f)){
+        ANA3.hist.length=0; ANA3.cand=null;
+        if(f.state==='attack')ANA3.refr=Math.max(ANA3.refr,tk+TUNING.ANA3_REFRACT_TICKS);
+        return;
+      }
+      const fc=f.facing||1;
+      const H=ANA3.hist, last=H[H.length-1];
+      if(last&&last.t===tk){ last.a=f.blade.ang; last.d=f.blade.des; last.sx=anaStick.qx*fc; last.sy=anaStick.qy; last.m=anaStick.mag; last.on=anaStick.active?1:0; }
+      else H.push({t:tk,a:f.blade.ang,d:f.blade.des,sx:anaStick.qx*fc,sy:anaStick.qy,m:anaStick.mag,on:anaStick.active?1:0});
+      while(H.length&&H[0].t<=tk-TUNING.ANA3_WINDOW_TICKS)H.shift();
+      if(tk<ANA3.refr||H.length<3)return;
+      const n=H.length, cur=H[n-1];
+      /* ---- JAB first: its blade arc is far below the slash gate,
+         so the two detectors can never compete for one motion ---- */
+      if(cur.sx>=TUNING.ANA3_JAB_TO){
+        for(let j=n-1;j>=0;j--){
+          if(cur.t-H[j].t>TUNING.ANA3_JAB_TICKS)break;
+          if(H[j].sx<=TUNING.ANA3_JAB_FROM){
+            let ok=j>=3;
+            for(let k=j-3;ok&&k<=j;k++)if(!H[k].on||Math.abs(H[k].sx)>TUNING.ANA3_JAB_QUIET||Math.abs(H[k].sy)>TUNING.ANA3_JAB_QUIET)ok=false; /* the punch starts from a QUIET, HELD stick — a wound-back slash sweeps through this band already moving and is refused, and so is a stick that only just appeared at full deflection (a fresh touch landing on the rim is an aim, not a punch) */
+            let jArc=0;
+            if(ok){ for(let k=j+1;k<n;k++){ if(Math.abs(H[k].sy)>TUNING.ANA3_JAB_MAX_Y){ ok=false; break; } jArc+=Math.abs(ana2WrapPi(H[k].a-H[k-1].a)); } }
+            if(ok&&(jArc>TUNING.ANA3_JAB_MAX_ARC||Math.abs(ana2WrapPi(H[j].a))>TUNING.ANA3_JAB_CONE||Math.abs(ana2WrapPi(cur.a))>TUNING.ANA3_JAB_CONE))ok=false;
+            if(ok){
+              if(f.char==='dooku')ana3Fire('thrust',true,f,jArc,0,cur.a);
+              else ana3Fire('right',false,f,jArc,(ana2WrapPi(cur.a-H[j].a)<0?-1:1),cur.a);
+              return;
+            }
+            break; /* only the most recent rise from the band counts */
+          }
+        }
+      }
+      /* ---- SLASH: the blade state's actual travel ---- */
+      let arc=0, peak=0, pkI=-1, magMax=0, desExc=0;
+      for(let i=1;i<n;i++){
+        const d=ana2WrapPi(H[i].a-H[i-1].a), ad=Math.abs(d);
+        arc+=ad;
+        const v=ad/(Math.max(1,H[i].t-H[i-1].t)/TUNING.SIM_HZ);
+        if(v>peak){ peak=v; pkI=i; }
+        if(H[i].m>magMax)magMax=H[i].m;
+        const de=Math.abs(ana2WrapPi(H[i].d-H[0].d)); if(de>desExc)desExc=de;
+      }
+      const net=ana2WrapPi(cur.a-H[0].a);
+      /* the STICK-DRIVEN gates: the travel must be the player's own
+         slash of the saber stick, not the blade state settling on
+         its own. A block press with a neutral stick snaps the
+         desired angle from the neutral default to the guard anchor
+         and the blade runs a full consistent radian at cap speed to
+         reach it — kinematically a perfect "slash" the player never
+         made (stick magnitude 0 throughout: refused). A re-seed
+         after hitstun flies the blade to a HELD aim — the desired
+         angle never sweeps (excursion ~0: refused). A real slash
+         deflects the stick hard and sweeps its desired angle wide:
+         both gates pass by construction. */
+      const consistent=arc>0&&Math.abs(net)/arc>=TUNING.ANA3_CONSISTENCY;
+      if(!ANA3.cand){
+        const gate=arc>=TUNING.ANA3_MIN_ARC&&peak>=TUNING.ANA3_MIN_PEAK_VEL&&consistent
+          &&magMax>=TUNING.ANA3_MIN_STICK_MAG&&(pkI<0||H[pkI].m>=0.35)&&desExc>=TUNING.ANA3_MIN_DES_EXC;
+        if(!gate)return; /* waggle dies here: reversals collapse the consistency ratio and the candidate never opens */
+        /* COMMIT WINDOW opens — the gesture's identity is LATCHED
+           from this window (start angle, start desired angle,
+           farthest commanded desired angle). The bounded window
+           keeps sliding while the blade finishes the sweep, and a
+           latched identity cannot be forgotten mid-gesture. */
+        let d1=H[0].d, best=-1;
+        for(let i=0;i<n;i++){ const de=Math.abs(ana2WrapPi(H[i].d-H[0].d)); if(de>best){ best=de; d1=H[i].d; } }
+        ANA3.cand={t0:tk,a0:H[0].a,d0:H[0].d,d1:d1};
+      }else{
+        /* continuation: a reversal still kills the candidate (the
+           live consistency collapses), and the latched farthest
+           desired angle tracks any further sweep of the stick */
+        if(!consistent||arc<TUNING.ANA3_MIN_ARC*0.85){ ANA3.cand=null; return; }
+        if(Math.abs(ana2WrapPi(cur.d-ANA3.cand.d0))>Math.abs(ana2WrapPi(ANA3.cand.d1-ANA3.cand.d0)))ANA3.cand.d1=cur.d;
+      }
+      /* the gesture commits when its energy is known — a sweep that
+         keeps travelling to ANA3_HEAVY_ARC fires the HEAVY the tick
+         it arrives; anything shorter fires its LIGHT when the blade
+         settles (two still samples) or the commit window runs out */
+      const settled=n>=3&&Math.abs(ana2WrapPi(cur.a-H[n-2].a))<0.02&&Math.abs(ana2WrapPi(H[n-2].a-H[n-3].a))<0.02;
+      if(arc<TUNING.ANA3_HEAVY_ARC&&tk-ANA3.cand.t0<TUNING.ANA3_COMMIT_TICKS&&!settled)return;
+      /* family: the LATCHED commanded trajectory's tip displacement
+         — dominance rule, the larger component wins */
+      let dx=Math.cos(ANA3.cand.d1)-Math.cos(ANA3.cand.d0), dy=Math.sin(ANA3.cand.d1)-Math.sin(ANA3.cand.d0);
+      if(Math.abs(dx)+Math.abs(dy)<0.15){ dx=Math.cos(cur.a)-Math.cos(ANA3.cand.a0); dy=Math.sin(cur.a)-Math.sin(ANA3.cand.a0); } /* degenerate command (stick already home): fall back to the blade's own tip travel */
+      let fam;
+      if(Math.abs(dy)>=Math.abs(dx))fam=dy>0?'overhead':'low';
+      else fam=dx>0?'right':'left';
+      ana3Fire(fam,arc>=TUNING.ANA3_HEAVY_ARC,f,arc,ana2WrapPi(cur.a-ANA3.cand.a0)<0?-1:1,cur.a);
+    }
     let prevForceBtn=false;
     function playerCtl(){
       let left=!!(keys.KeyA||(keys.ArrowLeft&&!G.versus)||btnState.left); /* S5: in Local Versus the arrows are P2's channel */
@@ -2160,6 +2334,13 @@
         if(!backHeld||!threat)stickBlockLatch=false;
       } else stickBlockLatch=false;
       if(stickKnob)stickKnob.classList.toggle('blocking',stickBlock);
+      /* ANALOG STAGE 3: slash recognition runs HERE — before the
+         direction selection below (its fire record steers one
+         interaction there) and before the flick consumption further
+         down, so a recognised gesture's flickFire pulse + latch are
+         consumed by this same call, exactly like a physical flick
+         of the strike buttons */
+      ana3Poll();
       /* ---- STAGE 2: attack/guard direction selection ----
          Desktop: Z = LEFT, X = OVERHEAD, C = RIGHT (spec Part 4);
          the selection applies to the next attack AND to the guard
@@ -2186,7 +2367,14 @@
         if(anaStick.active&&anaStick.mag>0){
           anaBlock=true;
           const sec=anaSector();
-          if(sec==='low')down=true;
+          /* ANALOG STAGE 3: a downward slash ENDS with the stick in
+             this low sector — on the very tick the gesture fires,
+             that incidental end position must not read as a held
+             crouch and hijack the start into a LOW through the
+             button path's down-override: the gesture's own latch
+             carries its direction. A LOW gesture keeps the down
+             (the two agree); physical inputs are untouched. */
+          if(sec==='low'){ if(!(ANA3.fire&&ANA3.fire.fam!=='low'))down=true; }
           else if(sec&&!dirSel)dirSel=sec;
         }
       } else {
@@ -2263,7 +2451,13 @@
         /* ANALOG STAGE B channels (see the stamp above): ana = this
            ctl's fighter is analog-driven; anaAng = desired blade
            angle in facing space, or null for a neutral stick */
-        ana: anaCtlOn, anaAng: anaCtlAng
+        ana: anaCtlOn, anaAng: anaCtlAng,
+        /* ANALOG STAGE 3 channel: this tick's recognised gesture
+           (family / energy / driven trajectory), or null. Local
+           only in effect — packCtl drops it by construction, so an
+           online gesture attack keeps the shipped geometry on both
+           clients while its discrete command crosses as usual */
+        ana3: ANA3.fire||null
       };
     }
     const emptyCtl=()=>({left:0,right:0,up:0,down:0,light:0,heavy:0,block:0,feint:0,dash:0,pull:0,special:0,alt:0,formNext:0,formPrev:0,moveX:0,dir:null,atkDirL:null,atkDirH:null});
@@ -2340,7 +2534,62 @@
       ANA2_BLADE_MIN: -2.65,
       ANA2_BLADE_MAX: 1.85,
       ANA2_DEFAULT_ANG: -0.5,
-      ANA2_SHOTO_OFF: 2.35
+      ANA2_SHOTO_OFF: 2.35,
+      /* ---- ANALOG STAGE 3 (user Stage 3): MANUAL SLASHING ----
+         Gesture recognition reads the Stage 2 blade state's ACTUAL
+         travel (f.blade.ang) over a bounded recent window — never
+         the stick's final position alone. A slash is recognised when
+         the window's total angular travel reaches ANA3_MIN_ARC with
+         directional consistency |net|/total at or above
+         ANA3_CONSISTENCY and a peak angular velocity at or above
+         ANA3_MIN_PEAK_VEL. LIGHT vs HEAVY is gesture energy: window
+         travel at or above ANA3_HEAVY_ARC commits the heavy. The
+         refractory (ANA3_REFRACT_TICKS) is re-armed every tick an
+         attack runs, so a gesture can never re-trigger until the
+         attack it started has ended plus this buffer. The driven
+         follow-through appended to a recognised gesture's arc is
+         clamp(arc * ANA3_FOLLOW_FRAC, ANA3_FOLLOW_MIN,
+         ANA3_FOLLOW_MAX). The JAB is the one gesture read off the
+         stick itself: a mostly-straight punch toward the opponent —
+         facing-space stick x from a QUIET start (the samples just
+         before the rise all inside ANA3_JAB_QUIET) at or below
+         ANA3_JAB_FROM to at or above ANA3_JAB_TO within
+         ANA3_JAB_TICKS, |stick y| never above ANA3_JAB_MAX_Y —
+         while the blade stays inside the forward cone
+         (ANA3_JAB_CONE of straight ahead) and its own travel stays
+         under ANA3_JAB_MAX_ARC. A slash wound back off a big blade
+         arc can therefore never masquerade as a jab.
+         LIGHT vs HEAVY needs the gesture's FULL energy, so a slash
+         that passes the gate opens a commit window of
+         ANA3_COMMIT_TICKS: a sweep still travelling when the window
+         arc reaches ANA3_HEAVY_ARC commits the heavy the tick it
+         gets there; a shorter motion commits its light when the
+         blade settles or the window runs out. */
+      ANA3_WINDOW_TICKS: 14,
+      ANA3_MIN_ARC: 0.95,
+      ANA3_CONSISTENCY: 0.72,
+      ANA3_MIN_PEAK_VEL: 4.6,
+      ANA3_HEAVY_ARC: 1.9,
+      ANA3_COMMIT_TICKS: 7,
+      ANA3_REFRACT_TICKS: 8,
+      ANA3_FOLLOW_FRAC: 0.34,
+      ANA3_FOLLOW_MIN: 0.30,
+      ANA3_FOLLOW_MAX: 1.05,
+      ANA3_JAB_TICKS: 7,
+      ANA3_JAB_FROM: 0.42,
+      ANA3_JAB_TO: 0.82,
+      ANA3_JAB_QUIET: 0.5,
+      ANA3_JAB_MAX_Y: 0.5,
+      ANA3_JAB_MAX_ARC: 0.5,
+      ANA3_JAB_CONE: 0.65,
+      /* stick-driven gates (see ana3Poll): the window must contain
+         a real deflection of the saber stick (peak magnitude), the
+         peak-velocity step itself must be stick-driven, and the
+         desired angle must genuinely sweep — together they refuse
+         blade travel the player never commanded (block-press guard
+         snaps, post-hitstun re-seeds to a held aim) */
+      ANA3_MIN_STICK_MAG: 0.6,
+      ANA3_MIN_DES_EXC: 0.55
     };
     const SIM_STEP=1/TUNING.SIM_HZ;
     /* STAGE 4 guard sensitivity: pad centre dead-zone (px) + stick tilt threshold for direction picks */
@@ -2890,6 +3139,12 @@
         if(t<d.startup)ang=lerp(-0.55,sp.from,windP);
         const recP=clamp((t-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
         if(t>d.startup+d.active)ang=lerp(sp.to,-0.55,easeOut(recP));
+        /* ANALOG STAGE 3: a gesture attack's segment is DRIVEN along
+           its commanded trajectory (ana3TrackAng) instead of the
+           canned arc — the swept hit test below therefore reads the
+           player's actual path through the same bladeSegment path as
+           every other attack, hit-once rules untouched */
+        if(a.ana3)ang=ana3TrackAng(a.ana3,d,t);
         /* BLADE CONTACT HALT: once this swing has registered blade
            contact (block), the segment FREEZES at the contact angle
            for the rest of its active frames and eases back from
@@ -3195,6 +3450,18 @@
       if(!setState(f,'attack'))return false; /* S1: illegal overlap — rejected by the transition table */
       spendStamina(f,cost);
       f.atk={type:type,t:0,def:d,dir:dir,activeTick:-1}; f.atkHasHit=false; f.blocking=false;
+      /* ANALOG STAGE 3: a gesture-fired start carries its driven
+         trajectory — stamped on this tick's ctl by playerCtl and
+         matched here on direction + energy class, so only the start
+         the gesture actually commanded is driven. CPU, button, flick
+         and online starts never carry the stamp (packCtl drops it),
+         so their attacks keep the shipped geometry untouched. A
+         heavy-energy LOW gesture commits the 'low' move through the
+         heavy press path (chain reset included) and is driven too. */
+      const a3=f.ctl&&f.ctl.ana3;
+      if(a3&&a3.dir===dir&&(type==='heavy'?a3.heavy:(!a3.heavy||a3.fam==='low'))){
+        f.atk.ana3={p0:a3.p0,ft:a3.ft,dirSign:a3.dirSign,fam:a3.fam};
+      }
       if(type==='heavy'||type==='light3')SFX.swingHeavy(); else SFX.swing();
       if(type==='air')f.airAtkUsed=true;
       return true;
@@ -3212,6 +3479,36 @@
         case 'low':      return {from:-1.7, to:0.95,  handY:16,  crouchK:.65};
         default:         return {from:-2.45,to:0.55,  handY:-20, crouchK:0}; /* right */
       }
+    }
+    /* ANALOG STAGE 3: the DRIVEN blade angle of a gesture attack at
+       attack time t. The gesture's own arc was already rendered live
+       (the stance blade followed the stick through it); the attack
+       continues FROM the angle the gesture ended at (p0): startup
+       carries the first 35% of the follow-through as the hand keeps
+       travelling, the active frames drive the rest to the
+       follow-through end (p0 + dirSign * ft) on the shipped
+       easeSwing curve, and recovery settles 55% of the way back
+       toward the guard angle — stepBlade's tracking holds whatever
+       angle this ends at, so stance integration re-seeds from the
+       trajectory's end with the rate cap making any snap impossible.
+       A thrust (dirSign 0) holds its line: the blade stays pointed
+       at the opponent through the lunge. Pure function of the attack
+       record + def, shared by bladeSegment and both pose layers, so
+       the rendered blade IS the sim blade. Contact halt still
+       overrides it at the call sites, exactly as it overrides the
+       canned arc. */
+    function ana3TrackAng(tr,d,t){
+      const ftEnd=tr.p0+tr.dirSign*tr.ft;
+      if(t<d.startup){
+        const w=clamp(t/Math.max(.05,d.startup),0,1);
+        return lerp(tr.p0,tr.p0+tr.dirSign*tr.ft*0.35,easeOut(w));
+      }
+      if(t<=d.startup+d.active){
+        const s=clamp((t-d.startup)/Math.max(.05,d.active),0,1);
+        return lerp(tr.p0+tr.dirSign*tr.ft*0.35,ftEnd,easeSwing(s));
+      }
+      const r=clamp((t-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
+      return lerp(ftEnd,-0.55,easeOut(r)*0.55);
     }
     /* clash class weight: heavier attacks win a saber bind */
     function atkWeight(a){ if(!a)return 0; if(a.type==='heavy')return 3; if(a.type==='light3'||a.type==='air')return 2; return 1; }
@@ -4916,6 +5213,10 @@
            extension and snapping to idle when the state ends */
         const recP=clamp((tt-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
         if(tt>d.startup+d.active){ ang=lerp(sp.to,-0.55,easeOut(recP)); }
+        /* ANALOG STAGE 3: a gesture attack renders the DRIVEN track
+           (ana3TrackAng) — the same angle bladeSegment computes, so
+           the visible blade is the sim blade through the swing */
+        if(a.ana3)ang=ana3TrackAng(a.ana3,d,tt);
         crouchK=Math.max(crouchK,sp.crouchK*(tt>d.startup+d.active?1-recP:1));
         /* STAGE 2: heavy strikes are COMMITTED — deeper lunge and
            torso drive than lights, the chain finisher and the air
@@ -6237,6 +6538,11 @@
            recovery so the swept path stays readable */
         const recP=clamp((tt-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
         if(tt>d.startup+d.active)ang=lerp(sp.to,-0.55,easeOut(recP));
+        /* ANALOG STAGE 3: drawn layer renders the same DRIVEN track
+           as the GLB layer and the sim segment; the trail wedge
+           below is drawn at this angle, so gesture swings trail
+           along the player's actual path */
+        if(a.ana3)ang=ana3TrackAng(a.ana3,d,tt);
         handX=22; handY=hipY+sp.handY; trail=swingP>=1?(recP<0.6?1-recP:0):swingP;
       }
       else if(st==='idle'){ /* STAGE 2: per-fighter idle signatures on the drawn layer — Dooku's low fencing guard, Ahsoka's raised ready angle, Sidious's low menace, Maul's prowl */
@@ -7820,6 +8126,16 @@
       if(!armed||(typeof TR!=='undefined'&&TR)||G.round!==1||!G.cineIntros){ if(CINE.active)cineEnd(); return 1.35; }
       CINE.hasObi=(pChar==='obi'||cChar==='obi');
       CINE.t=0; CINE.igP=false; CINE.igC=false; CINE.capOn=false; CINE.log=[];
+      /* STAGE 3 EXTRA CHECK (caption lifecycle): a re-arm while a
+         previous cinematic is still live (pause -> RESTART inside
+         the caption beat is the reachable path) used to reset the
+         capOn STATE but not the caption element's 'on' CLASS — the
+         two desynced, the caption-off line in cineTick keys off the
+         state, and "YOU WERE THE CHOSEN ONE!" stayed painted from
+         the new intro's first frame instead of appearing at its
+         beat. Reset the visuals wholesale before applying the new
+         intro's own, so state and element can never disagree. */
+      cineResetVisuals();
       if(G.online){ CINE.mode='fade'; CINE.dur=1.2; }
       else if(G.reducedMotion){ CINE.mode='brief'; CINE.dur=1.1; }
       else { CINE.mode='full'; CINE.dur=3.4; }
@@ -9491,6 +9807,10 @@
          state + its step / eligibility / desired-angle functions and
          the sim-sourced segment list, for the Stage 2 proof battery */
       stepBlade:stepBlade,bladeStanceEligible:bladeStanceEligible,bladeRenderSim:bladeRenderSim,bladeDesired:bladeDesired,simBladeSegments:simBladeSegments,ana2GuardAng:ana2GuardAng,
+      /* ANALOG STAGE 3 harness surface: gesture recognition state +
+         eligibility + the driven-track function, for the Stage 3
+         proof battery */
+      ANA3:ANA3,ana3Poll:ana3Poll,ana3Eligible:ana3Eligible,ana3TrackAng:ana3TrackAng,
       get ANA2(){return {cap:TUNING.ANA2_BLADE_CAP,min:TUNING.ANA2_BLADE_MIN,max:TUNING.ANA2_BLADE_MAX,def:TUNING.ANA2_DEFAULT_ANG,shotoOff:TUNING.ANA2_SHOTO_OFF};},
       /* VADER NOOOO + STICK JUMP harness surface */
       NOOO:NOOO,vaderNoBeat:vaderNoBeat,get VADER_NO_CLIP(){return VADER_NO_CLIP;},get stickJumpArmed(){return stickJumpArmed;},
