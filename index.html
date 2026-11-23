@@ -2169,10 +2169,24 @@
       if(typeof LOCK!=='undefined'&&LOCK&&LOCK.active)return false;
       return f.state==='idle'||f.state==='walk'||f.state==='crouch';
     }
-    function ana3Fire(fam,heavy,f,arc,dirSign,endAng){
+    function ana3Fire(fam,heavy,f,arc,dirSign,endAng,path){
+      /* STAGE 3 OFFENSE §1: sanitise the latched path's head — a
+         sample from before the gesture registered (a stale desired
+         angle left by the previous stance) can sit one jump ahead
+         of the real sweep; drop leading samples that jump more
+         than 0.65 rad from their successor so the replay follows
+         the sweep the player actually made */
+      if(path){ while(path.length>3&&Math.abs(path[1]-path[0])>0.65)path=path.slice(1); }
       const dir=fam==='thrust'?'right':fam;
       flickFire(false,heavy?'heavy':'light',dir,null); /* the same discrete command a button flick produces */
       ANA3.fire={fam:fam,heavy:heavy,dir:dir,arc:arc,dirSign:dirSign,p0:endAng,
+        /* STAGE 3 OFFENSE §1: the gesture's COMMANDED PATH — the
+           desired-angle samples (facing space) from the candidate's
+           window through the fire tick. The driven trajectory
+           (ana3TrackAng) replays THIS path, so a diagonal gesture
+           drives a diagonal strike; the shipped record (p0 / ft /
+           dirSign) remains the fallback for pathless fires (jabs) */
+        path:(path&&path.length>=3)?path.slice():null,
         ft:clamp(arc*TUNING.ANA3_FOLLOW_FRAC,TUNING.ANA3_FOLLOW_MIN,TUNING.ANA3_FOLLOW_MAX)};
       ANA3.hist.length=0; /* the gesture is consumed, fired or not */
       ANA3.cand=null;
@@ -2259,13 +2273,17 @@
            latched identity cannot be forgotten mid-gesture. */
         let d1=H[0].d, best=-1;
         for(let i=0;i<n;i++){ const de=Math.abs(ana2WrapPi(H[i].d-H[0].d)); if(de>best){ best=de; d1=H[i].d; } }
-        ANA3.cand={t0:tk,a0:H[0].a,d0:H[0].d,d1:d1};
+        /* STAGE 3 OFFENSE §1: the commanded path is latched with the
+           identity — the window's desired-angle samples, extended by
+           every continuation tick until the fire */
+        ANA3.cand={t0:tk,a0:H[0].a,d0:H[0].d,d1:d1,path:H.map(s=>s.d)};
       }else{
         /* continuation: a reversal still kills the candidate (the
            live consistency collapses), and the latched farthest
            desired angle tracks any further sweep of the stick */
         if(!consistent||arc<TUNING.ANA3_MIN_ARC*0.85){ ANA3.cand=null; return; }
         if(Math.abs(ana2WrapPi(cur.d-ANA3.cand.d0))>Math.abs(ana2WrapPi(ANA3.cand.d1-ANA3.cand.d0)))ANA3.cand.d1=cur.d;
+        ANA3.cand.path.push(cur.d);
       }
       /* the gesture commits when its energy is known — a sweep that
          keeps travelling to ANA3_HEAVY_ARC fires the HEAVY the tick
@@ -2280,7 +2298,7 @@
       let fam;
       if(Math.abs(dy)>=Math.abs(dx))fam=dy>0?'overhead':'low';
       else fam=dx>0?'right':'left';
-      ana3Fire(fam,arc>=TUNING.ANA3_HEAVY_ARC,f,arc,ana2WrapPi(cur.a-ANA3.cand.a0)<0?-1:1,cur.a);
+      ana3Fire(fam,arc>=TUNING.ANA3_HEAVY_ARC,f,arc,ana2WrapPi(cur.a-ANA3.cand.a0)<0?-1:1,cur.a,ANA3.cand.path);
     }
     let prevForceBtn=false;
     function playerCtl(){
@@ -2682,7 +2700,35 @@
          playerCtl). Full stops remain only in the shipped rooted
          states — contact resolution, hitstun, casts, GuardBroken
          and Blade Lock. */
-      ANA_GUARD_WALK_MUL: 0.45
+      ANA_GUARD_WALK_MUL: 0.45,
+      /* ---- STAGE 3 OFFENSE (user Stage 3): ADVANCED SABER OFFENSE ----
+         The ONLY new numbers this stage adds. FEINT_REDIRECT_TICKS:
+         after a Guard-feint cancels a heavy, an attack input arriving
+         within this many ticks of the feint starts the new attack
+         immediately from the feint (skipping the remaining feint
+         recovery) instead of returning to neutral; the start is
+         marked redirected and consumes the window, and a redirected
+         attack's own feint never re-arms it (exactly one redirect
+         per attack). Costs are the shipped ones: the feint's
+         10 posture / 5 Force PLUS the new attack's normal stamina,
+         both charged, no discounts. EVADE_COUNTER_TICKS: after a
+         dodge's i-frames end, the dodger's first landed hit inside
+         this window is a COUNTER at the shipped riposte bonus (the
+         single counter mechanic — see resolveStrike). Whiff-punish
+         (hit during the defender's attack recovery) and guard-break
+         hits earn the same bonus contextually, no new numbers.
+         ANA3_PATH_FOLLOW_SPLIT: fraction of a gesture attack's
+         active window that replays the player's latched commanded
+         path before the scaled follow-through takes over.
+         ANA3_PATH_DEV_MAX: the stated deviation bound — a driven
+         blade angle never sits farther than this (radians) from the
+         commanded path it replays (the only offset is the blade's
+         tracking lag at the fire tick, itself capped by the blade
+         step cap over the recognition latency). */
+      FEINT_REDIRECT_TICKS: 18,
+      EVADE_COUNTER_TICKS: 21,
+      ANA3_PATH_FOLLOW_SPLIT: 0.7,
+      ANA3_PATH_DEV_MAX: 0.30
     };
     const SIM_STEP=1/TUNING.SIM_HZ;
     /* STAGE 4 guard sensitivity: pad centre dead-zone (px) + stick tilt threshold for direction picks */
@@ -2968,6 +3014,15 @@
            locks parry out briefly (parryLockT) so spam loses. */
         dirSel: isPlayer?'right':'left', guardChangeT:0, guardSetTick:-999, parryLockT:0, parryAttempt:false,
         riposteT:0, feintT:0, dodgeCd:0, clashCd:0, lastClashTick:-1, splatCdT:0,
+        /* STAGE 3 OFFENSE state: redirectT = ticks of feint-redirect
+           window remaining (armed by a feint, consumed by the attack
+           it starts, never re-armed by a redirected attack's feint);
+           evadeArmT = ticks of evade-counter window remaining (armed
+           when a dodge's i-frames end, consumed by the first landed
+           hit); lastCounter = diagnostic record of the last counter
+           context scored ({kind,tick}) — written by resolveStrike,
+           never read by the sim, never hashed (lastDef precedent) */
+        redirectT:0, evadeArmT:0, lastCounter:null,
         /* BLADE CONTACT state (sim state — hashed): bindT/bindAng =
            this fighter's blade frozen at the contact angle after a
            clash or a parry received; meetT/meetAng = this fighter's
@@ -3775,8 +3830,14 @@
          heavy press path (chain reset included) and is driven too. */
       const a3=f.ctl&&f.ctl.ana3;
       if(a3&&a3.dir===dir&&(type==='heavy'?a3.heavy:(!a3.heavy||a3.fam==='low'))){
-        f.atk.ana3={p0:a3.p0,ft:a3.ft,dirSign:a3.dirSign,fam:a3.fam};
+        f.atk.ana3={p0:a3.p0,ft:a3.ft,dirSign:a3.dirSign,fam:a3.fam,path:a3.path?a3.path.slice():null};
       }
+      /* STAGE 3 OFFENSE §3: an attack that starts while a feint-
+         redirect window is armed IS the redirect — it is marked so
+         its own feint can never re-arm a window (exactly one
+         redirect per attack), and the window is consumed. Any other
+         start leaves the window to expire on its own timer. */
+      if(f.redirectT>0){ f.atk.redirected=true; f.redirectT=0; }
       if(type==='heavy'||type==='light3')SFX.swingHeavy(); else SFX.swing();
       if(type==='air')f.airAtkUsed=true;
       return true;
@@ -3812,15 +3873,63 @@
        the rendered blade IS the sim blade. Contact halt still
        overrides it at the call sites, exactly as it overrides the
        canned arc. */
+    /* STAGE 3 OFFENSE §1: sample the latched commanded path at
+       normalised position u (linear between the per-tick desired-
+       angle samples the player actually commanded) */
+    function ana3SamplePath(P,u){
+      const n=P.length; if(n<2)return P[0]||0;
+      const x=clamp(u,0,1)*(n-1), i=Math.floor(x), fr=x-i;
+      return i>=n-1?P[n-1]:P[i]+(P[i+1]-P[i])*fr;
+    }
     function ana3TrackAng(tr,d,t){
-      const ftEnd=tr.p0+tr.dirSign*tr.ft;
+      const P=tr.path;
+      /* pathless records (jabs — a thrust holds its line; legacy
+         fires) keep the shipped continuation track verbatim */
+      if(!P||P.length<3||!tr.dirSign){
+        const ftEnd0=tr.p0+tr.dirSign*tr.ft;
+        if(t<d.startup){
+          const w=clamp(t/Math.max(.05,d.startup),0,1);
+          return lerp(tr.p0,tr.p0+tr.dirSign*tr.ft*0.35,easeOut(w));
+        }
+        if(t<=d.startup+d.active){
+          const s=clamp((t-d.startup)/Math.max(.05,d.active),0,1);
+          return lerp(tr.p0+tr.dirSign*tr.ft*0.35,ftEnd0,easeSwing(s));
+        }
+        const r=clamp((t-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
+        return lerp(ftEnd0,-0.55,easeOut(r)*0.55);
+      }
+      /* STAGE 3 OFFENSE §1/§2 — PATH-DRIVEN TRACK. The strike follows
+         the player's own commanded path, not an extrapolated arc.
+         OFF is the blade's tracking lag at the fire tick (p0 minus
+         the final commanded angle): the replay carries OFF at its
+         start (continuity with where the blade physically is) and
+         WARPS it out along the replay — offset OFF·(1−u) at path
+         position u — so the path's end, where the player aimed the
+         end of the cut, is reached EXACTLY, and the track is
+         continuous at every phase boundary by construction.
+         STARTUP returns along the path reversed (the wind-up
+         re-chambers along the line the player drew); ACTIVE replays
+         the path forward for ANA3_PATH_FOLLOW_SPLIT of the window,
+         then the follow-through — the shipped
+         ft = clamp(arc·FRAC, MIN, MAX), so a short gesture's cut is
+         short and a wide gesture's swing runs long (§2) — extends
+         past the path's end in the gesture's own direction;
+         RECOVERY settles from the follow-through end exactly as
+         shipped. Diagonal-up and diagonal-down gestures latch
+         different paths, so their driven strikes are visibly
+         different paths, in both facings (the path is facing-space). */
+      const g0=P[0], g1=P[P.length-1], OFF=tr.p0-g1;
+      const ftEnd=g1+tr.dirSign*tr.ft;
       if(t<d.startup){
         const w=clamp(t/Math.max(.05,d.startup),0,1);
-        return lerp(tr.p0,tr.p0+tr.dirSign*tr.ft*0.35,easeOut(w));
+        return tr.p0+(ana3SamplePath(P,1-easeOut(w))-g1);
       }
       if(t<=d.startup+d.active){
         const s=clamp((t-d.startup)/Math.max(.05,d.active),0,1);
-        return lerp(tr.p0+tr.dirSign*tr.ft*0.35,ftEnd,easeSwing(s));
+        const SPLIT=TUNING.ANA3_PATH_FOLLOW_SPLIT;
+        if(s<SPLIT){ const u=easeSwing(s/SPLIT); return ana3SamplePath(P,u)+OFF*(1-u); }
+        const u=(s-SPLIT)/(1-SPLIT);
+        return g1+tr.dirSign*tr.ft*easeSwing(u);
       }
       const r=clamp((t-d.startup-d.active)/Math.max(.05,d.recovery),0,1);
       return lerp(ftEnd,-0.55,easeOut(r)*0.55);
@@ -3987,11 +4096,33 @@
       // --- CLEAN HIT (incl. wrong-direction guard) ---
       let dmg=DMG, counter=false, riposte=false;
       const aType=opts.type||atkDef.type||'';
+      /* STAGE 3 OFFENSE §4 — COUNTER WINDOWS, formalised: the shipped
+         riposte bonus (x1.4, form riposteMul, Dooku's Makashi x1.15)
+         is the SINGLE counter mechanic. It is earned in exactly four
+         contexts: (a) after a successful parry — the shipped
+         riposteT branch below, unchanged; (b) WHIFF PUNISH — this
+         hit lands while the defender is in their attack RECOVERY
+         (past startup+active — the same condition the shipped
+         punishes stat already counts); (c) GUARD BREAK — the
+         defender is GuardBroken; (d) EVADE — the attacker's evade
+         window (armed when their dodge's i-frames ended) is live.
+         In every context the bonus applies to the FIRST landed hit
+         only: the parry branches consume their timers as shipped,
+         and any landed clean hit consumes the evade arm whether or
+         not it was the scoring context. No new damage numbers: the
+         contextual branch applies the riposte formula verbatim. */
+      let ctxKind=null;
+      if(def.state==='guardbreak')ctxKind='guardbreak';
+      else if(def.state==='attack'&&def.atk&&def.atk.t>def.atk.def.startup+def.atk.def.active)ctxKind='whiff';
+      const evadeArmed=att.evadeArmT>0;
+      if(evadeArmed)att.evadeArmT=0; /* first landed hit consumes the arm, whatever scores */
+      if(!ctxKind&&evadeArmed)ctxKind='evade';
       /* S2: riposte DAMAGE scales with the attacker's form (Makashi /
          Djem So punish harder) — the riposte WINDOW and the parry
          window itself are never form-modified */
-      if(att.riposteT>0){ dmg=Math.round(dmg*1.4*effMods(att).riposteMul*(att.char==='dooku'?1.15:1)); riposte=true; att.riposteT=0; att.counterT=0; } /* DOOKU: Makashi precision — his parry-punish cuts 15% deeper again */
-      else if(att.counterT>0){ dmg=Math.round(dmg*1.6); counter=true; att.counterT=0; }
+      if(att.riposteT>0){ dmg=Math.round(dmg*1.4*effMods(att).riposteMul*(att.char==='dooku'?1.15:1)); riposte=true; att.riposteT=0; att.counterT=0; att.lastCounter={kind:'parry',tick:G.tick}; } /* DOOKU: Makashi precision — his parry-punish cuts 15% deeper again */
+      else if(att.counterT>0){ dmg=Math.round(dmg*1.6); counter=true; att.counterT=0; att.lastCounter={kind:'counterT',tick:G.tick}; }
+      else if(ctxKind){ dmg=Math.round(dmg*1.4*effMods(att).riposteMul*(att.char==='dooku'?1.15:1)); counter=true; att.lastCounter={kind:ctxKind,tick:G.tick}; }
       /* combo integrity: hits deep in a string deal scaled damage
          and stun, and the hard cap below forces a reset — no
          infinites, no full-bar strings */
@@ -4473,7 +4604,14 @@
       if(f.comboT>0){ f.comboT-=dt; if(f.comboT<=0)f.combo=0; }
       if(f.pullCd>0)f.pullCd-=dt; if(f.specCd>0)f.specCd-=dt; if(f.altCd>0)f.altCd-=dt;
       if(f.blockStun>0)f.blockStun-=dt;
-      if(f.invulnT>0)f.invulnT-=dt;
+      if(f.invulnT>0){ f.invulnT-=dt; if(f.invulnT<=0&&f.state==='dash')f.evadeArmT=TUNING.EVADE_COUNTER_TICKS/TUNING.SIM_HZ; } /* STAGE 3 OFFENSE §4d: a dodge's i-frames ending arms the evade-counter window */
+      /* STAGE 3 OFFENSE timers: the feint-redirect window and the
+         evade-counter window tick down here; leaving the locomotion
+         / attack states (hit, dash, jump, cast…) voids the redirect
+         window, so a fighter who was hit out of the feint sequence
+         can never spend it afterwards */
+      if(f.redirectT>0){ f.redirectT-=dt; const _rst=f.state; if(_rst!=='idle'&&_rst!=='walk'&&_rst!=='crouch'&&_rst!=='attack')f.redirectT=0; }
+      if(f.evadeArmT>0)f.evadeArmT-=dt;
       /* STAGE 2 timers */
       if(f.guardChangeT>0)f.guardChangeT-=dt;
       if(f.parryLockT>0)f.parryLockT-=dt;
@@ -4550,7 +4688,27 @@
       switch(f.state){
         case 'idle': case 'walk': case 'crouch': {
           if(f.blockStun>0)break;
-          if(f.feintT>0){ f.vx*=Math.pow(.001,dt); break; } /* feint recovery: committed, briefly */
+          if(f.feintT>0){
+            /* STAGE 3 OFFENSE §3 — FEINT REDIRECT: while the redirect
+               window is armed, an attack input (a Classic flick/tap
+               edge, a keyboard press, or an Analog gesture's fired
+               command — all arrive as the same buffered light/heavy
+               edges) starts the new attack IMMEDIATELY from the
+               feint, skipping the rest of the feint recovery. The
+               feint's cost was already charged by the feint branch;
+               startAttack charges the new attack's normal stamina —
+               both costs, no discounts. startAttack marks the start
+               as the redirect and consumes the window. A start the
+               stamina gate refuses leaves the shipped feint recovery
+               running, exactly as a refused press does elsewhere. */
+            if(f.redirectT>0&&f.formT<=0){
+              let _redir=false;
+              if(edge('light')){ f.buf.light=0; const adL=c.atkDirL||null; if(startAttack(f, (c.down||adL==='low')?'low':(f.chain===1?'light2':f.chain===2?'light3':'light'), adL)){ f.chain=(f.chain+1)%3; _redir=true; } }
+              else if(edge('heavy')){ f.buf.heavy=0; const adH=c.atkDirH||null; if(startAttack(f, (c.down||adH==='low')?'low':'heavy', adH)){ f.chain=0; _redir=true; } }
+              if(_redir){ f.feintT=0; break; }
+            }
+            f.vx*=Math.pow(.001,dt); break; /* feint recovery: committed, briefly */
+          }
           /* S2 FORM SWITCH: reachable ONLY from these locomotion
              states (Idle / Moving / Blocking — blocking is an overlay
              on them), never from attack / cast / hitstun / guardbreak
@@ -4693,8 +4851,14 @@
              impossible: this check lives before the hit code and
              requires a.t < startup. ---- */
           if(a.type==='heavy'&&a.t>=TUNING.FEINT_MIN_TICKS/TUNING.SIM_HZ&&a.t<a.def.startup&&(rawEdge('block')||rawEdge('feint'))){
+            /* STAGE 3 OFFENSE §3: the feint also ARMS the redirect
+               window (FEINT_REDIRECT_TICKS) — unless the feinted
+               attack was itself a redirect, whose feint is a plain
+               feint-to-neutral (exactly one redirect per attack) */
+            const _wasRedirected=!!a.redirected;
             f.atk=null; f.posture=Math.max(0,f.posture-10); f.force=Math.max(0,f.force-5);
             f.feintT=.14; setState(f,'idle'); SFX.feint();
+            if(!_wasRedirected)f.redirectT=TUNING.FEINT_REDIRECT_TICKS/TUNING.SIM_HZ;
             sparks(f.x+f.facing*30,f.y-110,bladeCol(f),5,140);
             addFloat(f.x,f.y-200,'FEINT','#ffd76a',15);
             break;
