@@ -725,6 +725,9 @@
       body.p2touch.versus-on #controls.on #p2Touch{display:flex;}
       .p2btn{font:inherit; font-size:11px; font-weight:800; letter-spacing:.05em; padding:10px 11px; color:#e8dcc0; background:rgba(16,13,10,.8); border:1px solid rgba(216,191,138,.55); border-radius:6px; cursor:pointer;}
       .p2btn.held{background:var(--gold); color:#08131f;}
+      /* reliable mobile home CTA hit target */
+      #menu.atHome #startDuelBtn{position:relative;z-index:20;pointer-events:auto;touch-action:manipulation;cursor:pointer;}
+      #menu.atHome .menuArt,#menu.atHome .menuArt::after{pointer-events:none;}
 </style>
   </head>
   <body>
@@ -880,6 +883,7 @@
           <div id="drillScore" class="labTxt">—</div>
           <div id="drillFrame" class="labTxt"></div>
           <div id="drillParry" class="labTxt"></div>
+          <div id="drillRange" class="labTxt"></div>
           <div id="drillTools"></div>
         </div>
         <div id="labFlash" aria-live="polite"></div>
@@ -1521,23 +1525,23 @@
       const el=$('menuTheme'); if(!el)return;
       stopThemeFade(); try{el.pause();}catch(e){} el.volume=MENU_VOL*masterVol;
     }
-    function tone(freq,dur,type,vol,slideTo){
+    function tone(freq,dur,type,vol,slideTo,bus){
       if(!AC||muted)return;
       const o=AC.createOscillator(),g=AC.createGain();
       o.type=type||'square'; o.frequency.setValueAtTime(freq,AC.currentTime);
       if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),AC.currentTime+dur);
       g.gain.setValueAtTime((vol||.12)*masterVol,AC.currentTime);
       g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+dur);
-      o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+      o.connect(g); g.connect(bus||AC.destination); o.start(); o.stop(AC.currentTime+dur);
     }
-    function noiseBurst(dur,vol,freq){
+    function noiseBurst(dur,vol,freq,bus){
       if(!AC||muted)return;
       const len=Math.floor(AC.sampleRate*dur),buf=AC.createBuffer(1,len,AC.sampleRate),d=buf.getChannelData(0);
       for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
       const src=AC.createBufferSource(); src.buffer=buf;
       const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq||2000; f.Q.value=.8;
       const g=AC.createGain(); g.gain.value=(vol||.25)*masterVol;
-      src.connect(f); f.connect(g); g.connect(AC.destination); src.start();
+      src.connect(f); f.connect(g); g.connect(bus||AC.destination); src.start();
     }
     /* CLASH CRACK (user's slash clips, 2026-11-15): a 0.30s bright
        slice of slash-09 at its energy peak (1.36-1.66s), high-passed
@@ -1555,13 +1559,13 @@
         AC.decodeAudioData(bytes.buffer.slice(0),b=>{ crackBuf=b; },()=>{});
       }catch(e){}
     }
-    function playCrack(vol){
+    function playCrack(vol,bus){
       if(!AC||muted||!crackBuf)return;
       try{
         const s=AC.createBufferSource(); s.buffer=crackBuf; s.playbackRate.value=1.12;
         const f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=650;
         const g=AC.createGain(); g.gain.value=(vol||.5)*masterVol;
-        s.connect(f); f.connect(g); g.connect(AC.destination); s.start();
+        s.connect(f); f.connect(g); g.connect(bus||AC.destination); s.start();
       }catch(e){}
     }
     /* SLASH SFX (user's slash video, cut 2026-11-15): 30 saber-swing
@@ -1649,14 +1653,50 @@
         if(SLASH_LOG.length>96)SLASH_LOG.shift();
       }catch(e){}
     }
+    /* ================= STAGE 5 B2 — IMPACT VOICE BUDGET ==========
+       The clash / impact layers get the slash pools' voice
+       discipline: a fixed budget of IMPACT.cap concurrent impact
+       voices, each routed through its own gain bus. A new impact
+       that finds the budget full STEALS the lowest-priority voice
+       (its bus is ramped to silence in 30ms); a new impact quieter
+       in priority than every live voice is dropped instead — rapid
+       exchanges can never stack into noise. Priorities: parry /
+       guard-break 4, clash 3, clean hit 2, block 1. The bus also
+       carries the DIRECTIONAL pan: callers that know the contact
+       point pass its x and the impact pans toward that side of the
+       arena. Presentation only — audio state never touches the sim
+       or the hash. IMPACT is the proof surface (peak / stolen /
+       dropped counters + a rolling log). */
+    const IMPACT={cap:3,voices:[],peak:0,stolen:0,dropped:0,played:0,log:[]};
+    function impactBus(kind,prio,dur,x){
+      if(!AC||muted)return null;
+      const now=AC.currentTime;
+      IMPACT.voices=IMPACT.voices.filter(v=>v.until>now);
+      if(IMPACT.voices.length>=IMPACT.cap){
+        let mi=0; for(let i=1;i<IMPACT.voices.length;i++)if(IMPACT.voices[i].prio<IMPACT.voices[mi].prio)mi=i;
+        const victim=IMPACT.voices[mi];
+        if(prio<victim.prio){ IMPACT.dropped++; IMPACT.log.push({kind:kind,drop:1,tick:(typeof G!=='undefined'&&G)?G.tick:-1}); if(IMPACT.log.length>96)IMPACT.log.shift(); return null; }
+        try{ victim.g.gain.cancelScheduledValues(now); victim.g.gain.setValueAtTime(Math.max(victim.g.gain.value,.001),now); victim.g.gain.exponentialRampToValueAtTime(.001,now+.03); }catch(e){}
+        IMPACT.voices.splice(mi,1); IMPACT.stolen++;
+      }
+      const g=AC.createGain(); g.gain.value=1;
+      if(x!=null&&AC.createStereoPanner){ const pn=AC.createStereoPanner(); pn.pan.value=clamp((x-480)/560,-0.8,0.8); g.connect(pn); pn.connect(AC.destination); }
+      else g.connect(AC.destination);
+      IMPACT.voices.push({kind:kind,prio:prio,until:now+(dur||.3),g:g});
+      IMPACT.played++;
+      if(IMPACT.voices.length>IMPACT.peak)IMPACT.peak=IMPACT.voices.length;
+      IMPACT.log.push({kind:kind,tick:(typeof G!=='undefined'&&G)?G.tick:-1,active:IMPACT.voices.length});
+      if(IMPACT.log.length>96)IMPACT.log.shift();
+      return g;
+    }
     const SFX={
       swing(){ noiseBurst(.14,.10,900+Math.random()*500); tone(300,.14,'sine',.05,90); },
       swingHeavy(){ noiseBurst(.22,.14,650); tone(200,.22,'sine',.07,60); },
       slash(f,heavy){ playSlash(f,heavy); },
-      clash(){ playCrack(.6); noiseBurst(.16,.3,2600); tone(1400,.12,'square',.06,300); tone(220,.18,'sawtooth',.08,55); },
-      parry(){ noiseBurst(.22,.34,3400); tone(2100,.25,'sine',.14,900); tone(3200,.18,'sine',.08,1600); },
-      hit(){ noiseBurst(.12,.28,1200); tone(160,.14,'sawtooth',.12,60); },
-      blockHit(){ noiseBurst(.1,.2,1900); tone(900,.08,'square',.05,400); },
+      clash(x){ const b=impactBus('clash',3,.32,x); if(!b)return; playCrack(.6,b); noiseBurst(.16,.3,2600,b); tone(1400,.12,'square',.06,300,b); tone(220,.18,'sawtooth',.08,55,b); },
+      parry(x){ const b=impactBus('parry',4,.3,x); if(!b)return; noiseBurst(.22,.34,3400,b); tone(2100,.25,'sine',.14,900,b); tone(3200,.18,'sine',.08,1600,b); },
+      hit(x){ const b=impactBus('hit',2,.2,x); if(!b)return; noiseBurst(.12,.28,1200,b); tone(160,.14,'sawtooth',.12,60,b); },
+      blockHit(x){ const b=impactBus('block',1,.14,x); if(!b)return; noiseBurst(.1,.2,1900,b); tone(900,.08,'square',.05,400,b); },
       force(){ tone(90,.4,'sine',.22,38); noiseBurst(.35,.12,300); },
       choke(){ tone(70,.5,'sawtooth',.1,45); noiseBurst(.4,.08,500); },
       jump(){ noiseBurst(.08,.05,1400); },
@@ -1665,7 +1705,7 @@
       throwS(){ tone(800,.3,'sine',.08,2400); },
       ignite(){ if(!AC||muted)return; tone(160,.34,'sawtooth',.07,880); tone(90,.3,'sine',.1,420); noiseBurst(.2,.09,2400); },
       feint(){ noiseBurst(.09,.06,520); tone(240,.1,'sine',.04,140); },
-      breakG(){ noiseBurst(.3,.3,900); tone(500,.3,'square',.1,80); }
+      breakG(x){ const b=impactBus('break',4,.36,x); if(!b)return; noiseBurst(.3,.3,900,b); tone(500,.3,'square',.1,80,b); }
     };
 
     /* ================= INPUT ================= */
@@ -2546,7 +2586,7 @@
       maul:{name:'DARTH MAUL',short:'MAUL',color:'#ff3b30',blade:'#ff2a1e',specName:'STAFF THROW',altName:'FORCE PUSH',specCost:35,altCost:30},
       ahsoka:{name:'AHSOKA TANO',short:'AHSOKA',color:'#eef2ff',blade:'#eef2ff',specName:'FORCE PULL',altName:'FORCE PUSH',specCost:30,altCost:30},
       dooku:{name:'COUNT DOOKU',short:'DOOKU',color:'#e8cf9a',blade:'#ff2a1e',specName:'FORCE CHOKE',altName:'FORCE LIGHTNING',specCost:40,altCost:40},
-      sidious:{name:'DARTH SIDIOUS',short:'SIDIOUS',color:'#b9a7ff',blade:'#ff2a1e',specName:'FORCE LIGHTNING',altName:'FORCE CHOKE',specCost:33,altCost:40},
+      sidious:{name:'DARTH SIDIOUS',short:'SIDIOUS',color:'#b9a7ff',blade:'#ff2a1e',specName:'FORCE LIGHTNING',altName:'FORCE CHOKE',specCost:30,altCost:40},
       /* INAAM (user order 2026-11-19): the user's own character — a
          street brawler handed a saber. Standard costs, standard
          mechanics; his difference is two traits (PADDED JACKET /
@@ -2728,7 +2768,52 @@
       FEINT_REDIRECT_TICKS: 18,
       EVADE_COUNTER_TICKS: 21,
       ANA3_PATH_FOLLOW_SPLIT: 0.7,
-      ANA3_PATH_DEV_MAX: 0.30
+      ANA3_PATH_DEV_MAX: 0.30,
+      /* ---- STAGE 4 FOOTWORK (user Stage 4): ADVANCED FOOTWORK ----
+         The ONLY new numbers this stage adds. Locomotion is an
+         acceleration model on the shipped f.vx (already hashed —
+         no new hashed state, no protocol change): each tick vx
+         approaches its target at MOVE_ACCEL_RATE x topSpeed per
+         second while speeding up in the held direction, and at
+         MOVE_DECEL_RATE x topSpeed per second when stopping or
+         reversing (direction changes pass through decel, never an
+         instant flip). Top speed is unchanged: the fighter's
+         PROFILE speed x form moveMul, so the roster keeps distinct
+         curves. A fresh press bursts: for STEP_BURST_TICKS the
+         accel rate is multiplied by STEP_ACCEL_MUL — a tap of
+         STEP_TAP_TICKS or fewer is therefore a short STEP (quick
+         burst, short travel, fast settle), a longer hold becomes
+         the full STRIDE (fwStride arms past the tap threshold once
+         speed reaches LUNGE_MIN_SPEED_FRAC of top). LUNGE: a ground
+         attack started while striding TOWARD the foe in close/mid
+         band gains LUNGE_RANGE_ADD range and carries its stride
+         velocity through startup, at +LUNGE_RECOVERY_ADD_TICKS
+         recovery (damage and phases otherwise identical).
+         RETREAT: a ground attack started while moving away at
+         >= RETREAT_MIN_SPEED_FRAC of top speed deals
+         RETREAT_DMG_MUL damage with RETREAT_RECOVERY_CUT_TICKS
+         less recovery — the two spec-authorised trade-offs.
+         LIGHT DRIFT: during a light attack's active phase, held
+         movement drifts at LIGHT_DRIFT_FRAC of top speed; heavies
+         stay rooted as shipped. RANGE BANDS are a pure function of
+         the (hashed) gap: close <= BAND_CLOSE_MAX, mid <=
+         BAND_MID_MAX, else long — spawn gap is 400 (long) and the
+         longest shipped connect is ~250 (inside mid). Bands gate
+         the lunge and label the lab readout only; never damage. */
+      MOVE_ACCEL_RATE: 7.0,
+      MOVE_DECEL_RATE: 9.0,
+      STEP_TAP_TICKS: 6,
+      STEP_BURST_TICKS: 7,
+      STEP_ACCEL_MUL: 3.0,
+      LUNGE_MIN_SPEED_FRAC: 0.6,
+      LUNGE_RANGE_ADD: 34,
+      LUNGE_RECOVERY_ADD_TICKS: 6,
+      RETREAT_MIN_SPEED_FRAC: 0.35,
+      RETREAT_DMG_MUL: 0.8,
+      RETREAT_RECOVERY_CUT_TICKS: 4,
+      LIGHT_DRIFT_FRAC: 0.35,
+      BAND_CLOSE_MAX: 120,
+      BAND_MID_MAX: 260
     };
     const SIM_STEP=1/TUNING.SIM_HZ;
     /* STAGE 4 guard sensitivity: pad centre dead-zone (px) + stick tilt threshold for direction picks */
@@ -2807,24 +2892,34 @@
         throw: ATK.throw
       };
     }
+    /* STAGE 6 BALANCE PASS (data only — CPU-vs-CPU round-robin at
+       Knight, 147 matches, both seats; see proofs-stage6/balance.md):
+       Vader heavy damage 16 -> 15 and Inaam heavy damage 14 -> 13
+       (the two clear high outliers); Ahsoka light damage 4 -> 5 and
+       Sidious light damage 5 -> 6 plus his signature Lightning cost
+       33 -> 30 in CHARS (the two clear low outliers). Sidious stayed
+       collapsed after that pass, so he alone got a second small step:
+       light posture damage 7 -> 9 and forceCostMul 0.75 -> 0.65 (his
+       wins-through-the-Force economy). Startups, recoveries, pools,
+       reach and identities are untouched. */
     const MOVES={
-      vader:buildMoves({ls:12,ld:7,lp:11,lr:15,hs:25,hd:16,hp:27,hr:27}),
+      vader:buildMoves({ls:12,ld:7,lp:11,lr:15,hs:25,hd:15,hp:27,hr:27}),
       obi:  buildMoves({ls:10,ld:5,lp:8, lr:12,hs:21,hd:11,hp:17,hr:22}),
       /* Maul: fast and aggressive, staff reach lives in reachMul;
          his heavy is the SPIN (flagged in startAttack) */
       maul: buildMoves({ls:11,ld:6,lp:9, lr:13,hs:22,hd:13,hp:22,hr:24}),
       /* Ahsoka: the fastest lights in the game (8f) and the quickest
          recovery, paid for with the lowest per-hit damage */
-      ahsoka:buildMoves({ls:8, ld:4,lp:7, lr:10,hs:20,hd:9, hp:14,hr:20}),
+      ahsoka:buildMoves({ls:8, ld:5,lp:7, lr:10,hs:20,hd:9, hp:14,hr:20}),
       /* Dooku: deliberate; his heavy is the LUNGING THRUST (flagged
          in startAttack — lunge velocity + 150 range, narrow band) */
       dooku: buildMoves({ls:11,ld:6,lp:10,lr:13,hs:23,hd:14,hp:20,hr:24}),
       /* Sidious: weak, slow normals — he wins through the Force */
-      sidious:buildMoves({ls:13,ld:5,lp:7, lr:15,hs:26,hd:10,hp:13,hr:28}),
+      sidious:buildMoves({ls:13,ld:6,lp:9, lr:15,hs:26,hd:10,hp:13,hr:28}),
       /* Inaam: a brawler's table — honest lights, a heavy that leans
          on the guard (the HEAVY HANDS trait adds its posture bite in
          startAttack, on top of this table's 24) */
-      inaam: buildMoves({ls:11,ld:6,lp:10,lr:13,hs:23,hd:14,hp:24,hr:25})
+      inaam: buildMoves({ls:11,ld:6,lp:10,lr:13,hs:23,hd:13,hp:24,hr:25})
     };
     /* casts keep the shipped timing, expressed through the same shape */
     function castDef(f,kind){
@@ -2920,7 +3015,7 @@
         animSet:{idle:'code-built Makashi guard (procedural figure)',locomotion:'pose-driven (drawn layer)',cast:'raised-hand pose',note:'TEMPORARY code-built figure — GLB swap replaces only the visual'},
         comboChain:['light','light2','light3','heavy'],
         finisher:{id:'makashi_verdict',name:'MAKASHI VERDICT',trigger:{type:'riposte',minFoeHpPct:15,forms:['II','V']},built:true}},
-      sidious:{char:'sidious',moveSpeed:205,reachMul:0.98,moves:null,maxHp:85,maxPosture:80,bodyH:148,hScale:0.96,forceCostMul:0.75,
+      sidious:{char:'sidious',moveSpeed:205,reachMul:0.98,moves:null,maxHp:85,maxPosture:80,bodyH:148,hScale:0.96,forceCostMul:0.65,
         signaturePowers:['pull','lightning (signature)','choke'],affinityForm:'VII',
         animSet:{idle:'code-built hooded guard (procedural figure)',locomotion:'pose-driven (drawn layer)',cast:'raised-hand pose',note:'TEMPORARY code-built figure — GLB swap replaces only the visual'},
         comboChain:['light','light2','light3','heavy'],
@@ -3023,6 +3118,16 @@
            context scored ({kind,tick}) — written by resolveStrike,
            never read by the sim, never hashed (lastDef precedent) */
         redirectT:0, evadeArmT:0, lastCounter:null,
+        /* STAGE 4 FOOTWORK state: fwDir/fwHold track the current
+           directional press (ticks), fwStride arms once a hold
+           passes the tap threshold at speed, fwBand is the range
+           band (pure function of the gap, refreshed in the
+           locomotion branch), lastMoveCtx is a diagnostic record of
+           the last attack's movement classification — never read
+           by the sim, never hashed (lastDef precedent). Movement
+           itself lives in f.vx, which the state hash already mixes,
+           so footwork is inside hash coverage with no new fields. */
+        fwDir:0, fwHold:0, fwStride:false, fwBand:'long', lastMoveCtx:null,
         /* BLADE CONTACT state (sim state — hashed): bindT/bindAng =
            this fighter's blade frozen at the contact angle after a
            clash or a parry received; meetT/meetAng = this fighter's
@@ -3075,6 +3180,14 @@
     let simAcc=0; /* fixed-timestep accumulator (seconds of game time) */
 
     function foe(f){ return f===P?C:P; }
+    /* STAGE 4 FOOTWORK helpers: range band from the gap (pure —
+       both fighters' x are hashed, so the band is sim-visible with
+       no state of its own), and a fighter's current top speed (the
+       shipped PROFILE speed x form moveMul — the accel model's
+       target scale, per fighter, never homogenised) */
+    function bandOfGap(gap){ return gap<=TUNING.BAND_CLOSE_MAX?'close':gap<=TUNING.BAND_MID_MAX?'mid':'long'; }
+    function topSpeedOf(f){ return (PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul; }
+    function rangeBand(f){ const o=foe(f); return o?bandOfGap(Math.abs(o.x-f.x)):'long'; }
     /* the LOCAL player's fighter: slot P in every local mode; online it
        is whichever sim slot this client occupies (P1 host / P2 guest) */
     function selfF(){ return (typeof G!=='undefined'&&G&&G.online&&G.localSlot==='C')?C:P; }
@@ -3088,6 +3201,37 @@
     }
     function ring(x,y,color,maxR){
       particles.push({x:x,y:y,vx:0,vy:0,t:0,life:.35,color:color,size:maxR||70,grav:0,type:'ring'});
+    }
+    /* ================= STAGE 5 B1 — GRADED CONTACT FEEDBACK ======
+       Presentation only: sparks / rings / camera shake live outside
+       the sim and the state hash, exactly like the shipped calls
+       this replaces. Every contact outcome gets its own visible
+       grade — parry brightest (densest sparks, double ring),
+       guard-break heaviest (dense burst + ring + the biggest
+       shake), clean block mid, glancing blow sparse and dim, clash
+       bright gold — and every grade scales by attack weight (heavy
+       strikes throw ~45% more) and by the effects quality scaler
+       (qScale: HIGH 1 / AUTO 1-.55-.3 by fps / ECO .3), so mobile
+       degrades by count, never by kind. FX_LOG is the proof
+       surface: one entry per graded contact with the emitted
+       counts. No per-frame allocation: this runs per contact. */
+    const FX_LOG=[];
+    function contactFX(kind,x,y,heavy,defCol){
+      let q=1; try{ q=qScale(); }catch(e){}
+      const w=heavy?1.45:1;
+      let n=12,col=defCol||'#ffd76a',pow=320,rings=0,ringR=0;
+      if(kind==='parry'){ n=30; col='#bfe6ff'; pow=520; rings=2; ringR=98; }
+      else if(kind==='break'){ n=30; col='#ffb340'; pow=490; rings=1; ringR=90; }
+      else if(kind==='clash'){ n=30; col='#ffe9a8'; pow=520; rings=1; ringR=95; }
+      else if(kind==='block'){ n=14; pow=340; }
+      else if(kind==='glance'){ n=7; col='#ffb340'; pow=220; }
+      n=Math.max(2,Math.round(n*w*q));
+      sparks(x,y,col,n,Math.round(pow*(heavy?1.15:1)));
+      for(let i=0;i<rings;i++)ring(x,y,col,ringR-i*24);
+      if(kind==='break')shake=Math.max(shake,heavy?8:6.5);
+      FX_LOG.push({kind:kind,heavy:!!heavy,n:n,rings:rings,tick:(typeof G!=='undefined'&&G)?G.tick:-1});
+      if(FX_LOG.length>64)FX_LOG.shift();
+      return n;
     }
     function emberBurst(x,y,color,n){
       for(let i=0;i<(n||10);i++)particles.push({x:x+rand(-14,14),y:y+rand(-10,10),vx:rand(-40,40),vy:rand(-90,-20),t:0,life:rand(.3,.8),color:color,size:rand(1.5,3),grav:-60,type:'spark'});
@@ -3721,11 +3865,12 @@
       /* S3 LAB snapshot + parry-attempt accounting, mirrored from
          resolveStrike so drills and results read analog defences
          exactly like discrete ones */
-      LAB._att={attempt:!!def.parryAttempt,delta:G.tick-def.guardSetTick,dirOk:guardDirOf(def)===atkDirOf(atkDef),atkDir:atkDirOf(atkDef),defDir:guardDirOf(def)};
+      LAB._att={attempt:!!def.parryAttempt,delta:G.tick-def.guardSetTick,dirOk:guardDirOf(def)===atkDirOf(atkDef),atkDir:atkDirOf(atkDef),defDir:guardDirOf(def),blocking:true,defState:def.state,anaBypass:false};
       if(def.parryAttempt&&(G.tick-def.guardSetTick)<=TUNING.PARRY_WINDOW_TICKS+6){ def.stats.parryAttempts++; def.parryAttempt=false; }
       const glancing=ic.cross<TUNING.ANA_DEF_GLANCE_CROSS||ic.d>TUNING.ANA_DEF_GLANCE_DIST;
       const fresh=(G.tick-def.guardSetTick)<=TUNING.PARRY_WINDOW_TICKS&&def.parryLockT<=0;
       const activeIn=!glancing&&fresh&&ic.defTipSpeed>=TUNING.ANA_DEF_PARRY_TIP_SPEED&&ic.intoCos<=TUNING.ANA_DEF_PARRY_INTO_COS;
+      LAB._why=activeIn?'tip-into-strike — your blade tip was driving INTO the strike inside the 9f window':(glancing?'glancing contact — shallow crossing angle or edge of reach: the strike stopped, but posture paid x1.5 and a glance can never parry':'clean block — your blade met the strike squarely');
       const recoilSign=(Math.sign(ana2WrapPi(anaDefWorldAng(def,ic.defAng)-anaDefWorldAng(att,ic.attAng)))||1)*(def.facing||1);
       const logDef=(result,cost)=>{ def.lastDef={result:result,tick:G.tick,cross:Math.round(ic.cross*1000)/1000,d:Math.round(ic.d),postureCost:Math.round(cost*10)/10,glancing:result==='glance'}; ANA_DEF_LOG.push(def.lastDef); if(ANA_DEF_LOG.length>48)ANA_DEF_LOG.shift(); };
       if(activeIn){
@@ -3734,13 +3879,13 @@
            contact angle), defender pays NO posture, riposte window
            opens, shipped AV (parry SFX, sparks, ring, callout,
            hitstop, Director event) */
-        SFX.parry(); sparks(cx,cy,'#bfe6ff',26,460); ring(cx,cy,'#bfe6ff',86);
+        SFX.parry(cx); contactFX('parry',cx,cy,(atkDef.type==='heavy'||POST>=18));
         addFloat(def.x,def.y-196,'PARRY!','#bfe6ff',26); showCallout('PARRY!','#bfe6ff');
         att.bindAng=ic.thruAng; att.bindX=cx; att.bindY=cy; att.bindT=0.38;
         const ma=meetAngleFor(def,cx,cy); if(ma!=null){ def.meetAng=ma; def.meetT=0.3; def.meetX=cx; def.meetY=cy; }
         att.posture=clamp(att.posture-POST*0.8,0,att.maxPosture||100);
         recordExchange(att,def,atkDef,'parry',0);
-        def.riposteT=0.9; def.counterT=0.9; def.parryAttempt=false; def.stats.parries++; gainForce(def,10);
+        def.riposteT=0.9; def.counterT=0.9; def.parryAttempt=false; def.stats.parries++; gainForce(def,10); noteReact(att,def);
         if(att.state==='attack'||att.state==='cast'){ att.atk=null; setState(att,'stagger'); att.stateT=-0.55; att.vx=-att.facing*120; }
         setHitstop(3); shake=Math.max(shake,4); directorEvent('parry',cx,cy,{dir:att.facing,color:'#bfe6ff'});
         def.blade.ang=ana2ClampArc(def.blade.ang+recoilSign*TUNING.ANA_DEF_RECOIL_LIGHT*0.5); /* a parrying blade is barely pushed — it did the pushing */
@@ -3751,14 +3896,14 @@
          angle (contactAng, the shipped halt) so it can never pass
          visually through the guard, and the body path is skipped by
          the caller, so posture is charged exactly once. */
-      SFX.blockHit(); sparks(cx,cy,bladeCol(def),glancing?8:12,300);
+      SFX.blockHit(cx); contactFX(glancing?'glance':'block',cx,cy,(atkDef.type==='heavy'||POST>=18),bladeCol(def));
       if(att.atk){ att.atk.contactAng=ic.thruAng; att.atk.contactT=att.atk.t; att.atk.contactX=cx; att.atk.contactY=cy; }
       const ma2=meetAngleFor(def,cx,cy); if(ma2!=null){ def.meetAng=ma2; def.meetT=0.28; def.meetX=cx; def.meetY=cy; }
       const dfm=effMods(def);
       def.hp=Math.max(0,def.hp-Math.round((atkDef.chip||0)*dfm.chipMul));
       const postCost=POST*dfm.postTakenMul*postTakenTraitMul(def)*(def.holdT>0.6?1.35:1)*(glancing?TUNING.ANA_DEF_GLANCE_POSTURE_MUL:1);
       def.posture-=postCost;
-      def.blockStun=Math.max(def.blockStun,.16); def.stats.blocks++;
+      def.blockStun=Math.max(def.blockStun,.16); def.stats.blocks++; noteReact(att,def);
       def.vx=att.facing*(atkDef.kb*.45); gainForce(def,3); gainForce(att,2);
       addFloat(def.x,def.y-190,glancing?'GLANCING BLOCK':'BLOCK',glancing?'#ffb340':'#ffd76a',glancing?14:15);
       /* blade recoil follows the contact geometry: heavies shove the
@@ -3767,13 +3912,13 @@
       def.blade.ang=ana2ClampArc(def.blade.ang+recoilSign*(heavyPush?TUNING.ANA_DEF_RECOIL_HEAVY:TUNING.ANA_DEF_RECOIL_LIGHT)*(glancing?0.6:1));
       breakCombo(def);
       if(def.posture<=0){
-        def.posture=0; SFX.breakG(); sparks(def.x,def.y-100,'#ffb340',24,420);
+        def.posture=0; SFX.breakG(def.x); contactFX('break',def.x,def.y-100,(atkDef.type==='heavy'||POST>=18));
         addFloat(def.x,def.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340');
-        def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); setHitstop(5); directorEvent('guardbreak',def.x,def.y-100,{dir:att.facing,color:'#ffb340'});
+        def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); setHitstop(5); directorEvent('guardbreak',def.x,def.y-100,{dir:att.facing,color:'#ffb340'}); noteGB(att,def);
       }
       recordExchange(att,def,atkDef,'block',0);
       logDef(glancing?'glance':'block',postCost);
-      if(def.hp<=0)koRound(att);
+      if(def.hp<=0){ att._lastBlow={dir:atkDirOf(atkDef),type:atkDef.type||'',weapon:weaponTypeOf(att)}; koRound(att); } /* STAGE 5 B3: a chip kill through the guard is still a killing blow with a direction */
       return glancing?'glance':'block';
     }
 
@@ -3815,11 +3960,43 @@
       d.postureDamage=Math.round(base.postureDamage*fm.postDealtMul*(f.char==='inaam'&&type==='heavy'?1.25:1)); d.post=d.postureDamage; /* INAAM — HEAVY HANDS: his heavies bite 25% deeper into posture (his trait, stacked on the form's dealt multiplier at this single computation point, so block / clash / frame-data all read the same number) */
       d.range=Math.round(base.range*(prof.reachMul||1))+(isLight?fm.lightRangeAdd:0);
       if(d.thrust)d.range=150; /* the thrust's 150 is absolute: best range-per-frame in the game */
+      /* STAGE 4 FOOTWORK §3/§4 — MOVEMENT CONTEXT, classified once
+         at the start from the fighter's live velocity (f.vx, hashed
+         sim state) and the range band. Ground attacks only (never
+         air): striding TOWARD the foe (fwStride armed, velocity
+         toward at >= LUNGE_MIN_SPEED_FRAC of top speed) in close or
+         mid band = LUNGE — +LUNGE_RANGE_ADD range (the thrust's
+         absolute 150 already exceeds any lunge, so it is exempt),
+         +LUNGE_RECOVERY_ADD_TICKS recovery, momentum carried in
+         fighterUpdate. Moving AWAY at >= RETREAT_MIN_SPEED_FRAC of
+         top speed = RETREATING — damage x RETREAT_DMG_MUL,
+         recovery -RETREAT_RECOVERY_CUT_TICKS (floored at 4f).
+         Family, phases and posture damage are otherwise identical. */
+      let mvCtx=null;
+      if(type!=='air'&&f.y>=GROUND-2){
+        const _foe=foe(f);
+        if(_foe){
+          const _gap=Math.abs(_foe.x-f.x), _band=bandOfGap(_gap);
+          const _toward=(_foe.x>=f.x?1:-1), _vxT=f.vx*_toward, _top=topSpeedOf(f);
+          if(f.fwStride&&_vxT>=_top*TUNING.LUNGE_MIN_SPEED_FRAC&&_band!=='long'){
+            mvCtx='lunge';
+            if(!d.thrust)d.range+=TUNING.LUNGE_RANGE_ADD;
+            d.recoveryFrames=(d.recoveryFrames||Math.round(d.recovery*TUNING.SIM_HZ))+TUNING.LUNGE_RECOVERY_ADD_TICKS; d.recovery=d.recoveryFrames/TUNING.SIM_HZ;
+          }else if(_vxT<=-_top*TUNING.RETREAT_MIN_SPEED_FRAC){
+            mvCtx='retreat';
+            d.damage=Math.max(1,Math.round(d.damage*TUNING.RETREAT_DMG_MUL)); d.dmg=d.damage;
+            d.recoveryFrames=Math.max(4,(d.recoveryFrames||Math.round(d.recovery*TUNING.SIM_HZ))-TUNING.RETREAT_RECOVERY_CUT_TICKS); d.recovery=d.recoveryFrames/TUNING.SIM_HZ;
+          }
+          f.lastMoveCtx={kind:mvCtx||'neutral',band:_band,gap:Math.round(_gap),vx:Math.round(f.vx),tick:(typeof G!=='undefined'&&G)?G.tick:-1};
+        }
+      }
       d.staminaCost=cost;
       if(type==='heavy'&&fm.heavyStartupAdd){ d.startupFrames=base.startupFrames+fm.heavyStartupAdd; d.startup=d.startupFrames/TUNING.SIM_HZ; }
       if(!setState(f,'attack'))return false; /* S1: illegal overlap — rejected by the transition table */
       spendStamina(f,cost);
       f.atk={type:type,t:0,def:d,dir:dir,activeTick:-1}; f.atkHasHit=false; f.blocking=false;
+      if(f.stats)f.stats.thrown=(f.stats.thrown||0)+1; /* STAGE 6: strike attempt counted at the one start gate every saber attack passes */
+      if(mvCtx){ f.atk.moveCtx=mvCtx; if(mvCtx==='lunge')f.atk.lungeVx=Math.abs(f.vx); } /* STAGE 4: the classification rides the attack record (hashed below) */
       /* ANALOG STAGE 3: a gesture-fired start carries its driven
          trajectory — stamped on this tick's ctl by playerCtl and
          matched here on direction + energy class, so only the start
@@ -4001,8 +4178,31 @@
       if(delta<=TUNING.PARRY_WINDOW_TICKS)return 'PARRY ✓ — pressed '+delta+'f before contact, inside the '+TUNING.PARRY_WINDOW_TICKS+'f window'+(delta<=2?' — near-perfect.':'.');
       return 'PARRY MISS — EARLY by '+(delta-TUNING.PARRY_WINDOW_TICKS)+'f: pressed '+delta+'f before contact, so the '+TUNING.PARRY_WINDOW_TICKS+'f window closed '+(delta-TUNING.PARRY_WINDOW_TICKS)+'f too soon. Press LATER, as the blade arrives.';
     }
+    /* STAGE 6: guard-break + guard-reaction accounting, fed from
+       the shipped resolution sites (strike block, analog defence,
+       blocked Lightning, guard-hold drain, Blade Lock). Stat state
+       only — no sim value is read back from these counters. */
+    function noteGB(att,def){ if(!att||!def||!att.stats||!def.stats)return; att.stats.gbDealt=(att.stats.gbDealt||0)+1; def.stats.gbTaken=(def.stats.gbTaken||0)+1; }
+    function noteReact(att,def){ if(!att||!def||!att.atk||!def.stats)return; const startTick=G.tick-Math.round(att.atk.t*60); const r=def.guardSetTick-startTick; if(r>=0&&r<=120){ def.stats.reactSum=(def.stats.reactSum||0)+r; def.stats.reactN=(def.stats.reactN||0)+1; } }
+    /* STAGE 6 (item C): WHY an exchange resolved the way it did,
+       classified from the facts the engine already snapshotted into
+       LAB._att at resolution entry — presentation of existing facts,
+       never a new judgement call. */
+    function whyForExchange(result){
+      const s=LAB._att||{};
+      if(result==='parry')return 'inside the window — fresh guard pressed '+(s.delta!=null?Math.max(0,s.delta):'?')+'f before contact, direction matched';
+      if(result==='block')return 'clean block — direction matched and the blade met the strike';
+      if(result==='hit'){
+        if(s.defState==='guardbreak')return 'guard broken — the defender was GuardBroken and open';
+        if(s.anaBypass)return 'blade not intercepting — guard was held, but the blade never met the strike';
+        if(s.blocking&&!s.dirOk)return 'wrong direction — guarded '+String(s.defDir||'').toUpperCase()+' into a '+String(s.atkDir||'').toUpperCase()+' strike';
+        if(s.blocking)return 'guard stale — held from long before, no fresh press to meet it';
+        return 'guard down — no guard held as the strike landed';
+      }
+      return '';
+    }
     function recordExchange(att,def,atkDef,result,stunT){
-      if(!TR||TR.id!=='free')return;
+      if(!TR)return; /* STAGE 6: exchanges are recorded in EVERY drill (was Free Practice only) so scored drills can state WHY; LAB remains presentation-only state the sim never reads */
       let aLeft=att.atk?Math.max(0,Math.round((att.atk.def.startup+att.atk.def.active+att.atk.def.recovery-att.atk.t)*60)):0;
       if(result==='parry')aLeft=33; /* the parried attacker staggers 0.55s */
       let dLeft;
@@ -4012,7 +4212,9 @@
       const byPlayer=att===P;
       LAB.last={move:String(atkDef.id||atkDef.type||'strike').toUpperCase(),dir:atkDirOf(atkDef),result:result,byPlayer:byPlayer,
         adv:byPlayer?(dLeft-aLeft):(aLeft-dLeft),
-        pLeft:byPlayer?aLeft:dLeft, cLeft:byPlayer?dLeft:aLeft, tick:G.tick};
+        pLeft:byPlayer?aLeft:dLeft, cLeft:byPlayer?dLeft:aLeft, tick:G.tick,
+        why:(LAB._why||whyForExchange(result)), delta:(LAB._att?LAB._att.delta:null), dirOk:(LAB._att?LAB._att.dirOk:null)};
+      LAB._why=null;
       const _pa=LAB._att;
       if(result==='parry'||(_pa&&_pa.attempt)){
         const delta=_pa?_pa.delta:(G.tick-def.guardSetTick);
@@ -4035,7 +4237,7 @@
       /* S3 LAB: snapshot the defender's parry attempt NOW — the
          accounting just below consumes def.parryAttempt, and the
          practice feedback needs the original press tick + direction */
-      LAB._att={attempt:!!def.parryAttempt,delta:G.tick-def.guardSetTick,dirOk:guardDirOf(def)===atkDirOf(atkDef),atkDir:atkDirOf(atkDef),defDir:guardDirOf(def)};
+      LAB._att={attempt:!!def.parryAttempt,delta:G.tick-def.guardSetTick,dirOk:guardDirOf(def)===atkDirOf(atkDef),atkDir:atkDirOf(atkDef),defDir:guardDirOf(def),blocking:!!def.blocking,defState:def.state,anaBypass:!!(opts&&opts.anaBypass)};
       /* STAGE 4 event log: a fresh guard input that actually MEETS a
          strike is one parry ATTEMPT, whatever the outcome — the
          results screen's accuracy is successes / attempts, both
@@ -4048,7 +4250,7 @@
       // Only the analog fall-through in fighterUpdate passes it;
       // every shipped caller leaves it undefined, unchanged.)
       if(!opts.anaBypass&&parryCheck(def,atkDef)){
-        SFX.parry(); sparks(cx,cy,'#bfe6ff',26,460); ring(cx,cy,'#bfe6ff',86);
+        SFX.parry(cx); contactFX('parry',cx,cy,(atkDef.type==='heavy'||POST>=18));
         addFloat(def.x,def.y-196,'PARRY!','#bfe6ff',26); showCallout('PARRY!','#bfe6ff');
         /* the parried blade STOPS on the defender's blade: the
            attacker staggers holding the contact angle (bind), and
@@ -4059,7 +4261,7 @@
            (a deliberate follow-up hit inside it is the RIPOSTE) */
         att.posture=clamp(att.posture-POST*0.8,0,att.maxPosture||100);
         recordExchange(att,def,atkDef,'parry',0);
-        def.riposteT=0.9; def.counterT=0.9; def.parryAttempt=false; def.stats.parries++; gainForce(def,10);
+        def.riposteT=0.9; def.counterT=0.9; def.parryAttempt=false; def.stats.parries++; gainForce(def,10); noteReact(att,def);
         if(att.state==='attack'||att.state==='cast'){ att.atk=null; setState(att,'stagger'); att.stateT=-0.55; att.vx=-att.facing*120; }
         setHitstop(3); shake=Math.max(shake,4); directorEvent('parry',cx,cy,{dir:att.facing,color:'#bfe6ff'});
         breakCombo(def); return 'parry';
@@ -4067,7 +4269,7 @@
       // --- BLOCK: matching direction only. Wrong direction falls
       //     through to a clean hit — that IS the directional rule. ---
       if(!opts.anaBypass&&def.blocking && guardDirOf(def)===atkDirOf(atkDef) && def.state!=='choked' && !opts.unblockable && atkDef.guardType!=='Unblockable'){
-        SFX.blockHit(); sparks(cx,cy,bladeCol(def),12,300);
+        SFX.blockHit(cx); contactFX('block',cx,cy,(atkDef.type==='heavy'||POST>=18),bladeCol(def));
         /* BLADE CONTACT HALT: the blocked swing stops ON the
            defender's blade — record the contact on the attack
            itself (angle + tick + point; hashed sim state) and pose
@@ -4080,14 +4282,14 @@
         const dfm=effMods(def);
         def.hp=Math.max(0,def.hp-Math.round((atkDef.chip||0)*dfm.chipMul));
         def.posture-=(POST*dfm.postTakenMul*postTakenTraitMul(def)*(def.holdT>0.6?1.35:1));
-        def.blockStun=Math.max(def.blockStun,.16); def.stats.blocks++;
+        def.blockStun=Math.max(def.blockStun,.16); def.stats.blocks++; noteReact(att,def);
         def.vx=att.facing*(atkDef.kb*.45); gainForce(def,3); gainForce(att,2);
         addFloat(def.x,def.y-190,'BLOCK','#ffd76a',15);
         breakCombo(def);
         if(def.posture<=0){
-          def.posture=0; SFX.breakG(); sparks(def.x,def.y-100,'#ffb340',24,420);
+          def.posture=0; SFX.breakG(def.x); contactFX('break',def.x,def.y-100,(atkDef.type==='heavy'||POST>=18));
           addFloat(def.x,def.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340');
-          def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); setHitstop(5); directorEvent('guardbreak',def.x,def.y-100,{dir:att.facing,color:'#ffb340'}); /* S1: GuardBroken stagger = 2.0s */
+          def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); setHitstop(5); directorEvent('guardbreak',def.x,def.y-100,{dir:att.facing,color:'#ffb340'}); noteGB(att,def); /* S1: GuardBroken stagger = 2.0s */
         }
         recordExchange(att,def,atkDef,'block',0);
         if(def.hp<=0)koRound(att);
@@ -4134,7 +4336,7 @@
       const stunScale=hitsBefore>=2?Math.max(.6,1-.07*(hitsBefore-1)):1;
       dmg=Math.max(1,Math.round(dmg*dmgScale));
       const stunT=(atkDef.stun||0)*stunScale;
-      SFX.hit(); sparks(midX,midY,bladeCol(att),16,380);
+      SFX.hit(midX); sparks(midX,midY,bladeCol(att),16,380);
       /* GORE (presentation only — blood state never enters the sim or
          the state hash; each client renders its own from this same
          deterministic hit event): BLADE hits only. Saber swings and
@@ -4151,11 +4353,13 @@
         bloodBurst(cx,cy,bx,by,dmg);
       }
       def.hp=Math.max(0,def.hp-dmg); def.hurtFlash=.18;
+      if(def.hp<=0)att._lastBlow={dir:atkDirOf(atkDef),type:atkDef.type||aType,weapon:weaponTypeOf(att)}; /* STAGE 5 B3: the killing blow, recorded for finisher matching — a presentation field (underscore), never hashed; fresh fighters each round reset it */
       def.posture=clamp(def.posture+6,0,def.maxPosture||100);
       gainForce(att,6); gainForce(def,4);
       att.combo++; att.comboT=.9; att.stats.hits++;
       att.stats.maxCombo=Math.max(att.stats.maxCombo,att.combo);
       if(riposte||counter||def.state==='stagger'||def.state==='guardbreak'||(def.state==='attack'&&def.atk&&def.atk.t>def.atk.def.startup+def.atk.def.active))att.stats.punishes++;
+      if(riposte||counter)att.stats.counters=(att.stats.counters||0)+1; /* STAGE 6: counters = hits that carried the riposte/counter bonus */
       if(riposte)addFloat(def.x,def.y-208,'RIPOSTE!','#59c2ff',25);
       else if(counter)addFloat(def.x,def.y-208,'COUNTER HIT!','#59c2ff',24);
       if(riposte)showCallout('RIPOSTE!','#59c2ff'); else if(counter)showCallout('COUNTER!','#59c2ff');
@@ -4222,7 +4426,7 @@
          meet there even when the gate fired on bind distance */
       if(_sa)a.bindAng=Math.atan2(my-_sa.hy,(mx-_sa.hx)*a.facing); if(_sb)b.bindAng=Math.atan2(my-_sb.hy,(mx-_sb.hx)*b.facing);
       a.bindX=mx; a.bindY=my; a.bindT=0.32; b.bindX=mx; b.bindY=my; b.bindT=0.32;
-      SFX.clash(); sparks(mx,my,'#ffe9a8',30,520); ring(mx,my,'#ffe9a8',95);
+      SFX.clash(mx); contactFX('clash',mx,my,(a.atk&&a.atk.type==='heavy')||(b.atk&&b.atk.type==='heavy'));
       addFloat(mx,my-56,'SABER CLASH!','#ffe9a8',22); showCallout('SABER CLASH!','#ffe9a8');
       loser.posture=clamp(loser.posture-14,0,loser.maxPosture||100);
       winner.posture=clamp(winner.posture-5,0,winner.maxPosture||100);
@@ -4271,7 +4475,7 @@
         f.bindX=mx; f.bindY=my; f.bindT=0.45; f.atk=null; f.blocking=false; f.vx=0;
         setState(f,'lock',true);
       }
-      SFX.clash(); sparks(mx,my,'#ffe9a8',34,560); ring(mx,my,'#ffe9a8',104);
+      SFX.clash(mx); contactFX('clash',mx,my,true);
       addFloat(mx,my-72,'BLADE LOCK!','#ffe9a8',24); showCallout('BLADE LOCK!','#ffe9a8');
       directorEvent('clash',mx,my,{dir:a.facing,color:'#ffe9a8'});
       lockHudShow();
@@ -4379,11 +4583,11 @@
       winner.bindT=0.3; winner.vx=-winner.facing*40; /* advantage stance: position + posture, never a free hit */
       loser.posture=clamp(loser.posture-LOCK_POSTURE_DMG,0,loser.maxPosture||100);
       loser.vx=(loser.x>=winner.x?1:-1)*540; /* the heavy shove */
-      sparks(LOCK.x,LOCK.y,'#ffe9a8',26,520); SFX.clash();
+      contactFX('clash',LOCK.x,LOCK.y,true); SFX.clash(LOCK.x);
       if(loser.posture<=0){
         loser.posture=0;
         if(loser.state==='lock')setState(loser,'guardbreak',true);
-        loser.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ;
+        loser.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; noteGB(winner,loser);
         addFloat(loser.x,loser.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340'); SFX.breakG();
       }else{
         if(loser.state==='lock')setState(loser,'stagger',true);
@@ -4559,9 +4763,9 @@
         addFloat(def.x,def.y-195,'LIGHTNING BLOCKED','#c9a7ff',16);
         breakCombo(def);
         if(def.posture<=0){
-          def.posture=0; SFX.breakG(); sparks(def.x,def.y-100,'#ffb340',24,420);
+          def.posture=0; SFX.breakG(def.x); contactFX('break',def.x,def.y-100,true);
           addFloat(def.x,def.y-205,'GUARD BREAK!','#ffb340',25); showCallout('GUARD BREAK!','#ffb340');
-          def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6);
+          def.blocking=false; setState(def,'guardbreak'); def.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; shake=Math.max(shake,6); noteGB(caster,def);
         }
         if(def.hp<=0)koRound(caster);
         return;
@@ -4671,7 +4875,7 @@
       const wantBlock = c.block && (f.state==='idle'||f.state==='walk'||f.state==='crouch'||f.blocking);
       f.blocking = !!(wantBlock && f.y>=GROUND-2 && f.blockStun<=0);
       f.blockLow = f.blocking && !!c.down;
-      if(f.blocking){ f.holdT+=dt; f.posture-=dt*(f.holdT>0.55?7:2.2)*effMods(f).holdDrainMul; if(f.posture<=0){ f.posture=0; SFX.breakG(); addFloat(f.x,f.y-205,'GUARD BREAK!','#ffb340',25); sparks(f.x,f.y-100,'#ffb340',24,420); f.blocking=false; setState(f,'guardbreak'); f.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; } }
+      if(f.blocking){ f.holdT+=dt; f.posture-=dt*(f.holdT>0.55?7:2.2)*effMods(f).holdDrainMul; if(f.posture<=0){ f.posture=0; SFX.breakG(); addFloat(f.x,f.y-205,'GUARD BREAK!','#ffb340',25); sparks(f.x,f.y-100,'#ffb340',24,420); f.blocking=false; setState(f,'guardbreak'); f.stateT=-TUNING.GUARDBREAK_TICKS/TUNING.SIM_HZ; noteGB(foe(f),f); } }
       else { f.holdT=0; if(!isBusy(f))f.posture=clamp(f.posture+dt*11,0,f.maxPosture||100); } /* S5: boss posture pool regens to its own max (100 for everyone else) */
       /* S1 STAMINA REGEN: ticks down the no-spend delay, then refills
          at STAMINA_REGEN_PER_SEC while the fighter is in a locomotion
@@ -4792,7 +4996,32 @@
           /* S2: walk speed = the duelist's PROFILE base speed scaled
              by their form (Ataru +15%) */
           const spd=f.blocking?(anaGW?(PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul*TUNING.ANA_GUARD_WALK_MUL:60):(PROFILES[f.char]?PROFILES[f.char].moveSpeed:TUNING.WALK_SPEED)*effMods(f).moveMul;
-          f.vx=lerp(f.vx,mv*spd,1-Math.pow(.0001,dt));
+          /* STAGE 4 FOOTWORK §1/§2 — ACCELERATION LOCOMOTION: vx
+             approaches the target (held direction x this fighter's
+             top speed) at a per-fighter rate — MOVE_ACCEL_RATE x
+             topSpeed/s speeding up in the held direction,
+             MOVE_DECEL_RATE x topSpeed/s stopping or reversing, so
+             a stop is a short readable slide and a direction change
+             passes through decel. A FRESH press (direction newly
+             held, or re-held after release) bursts at STEP_ACCEL_MUL
+             for STEP_BURST_TICKS: a tap of <= STEP_TAP_TICKS is a
+             STEP (burst + quick settle, short travel), a longer
+             hold is the STRIDE and arms fwStride for the lunge
+             classification in startAttack. Press tracking lives in
+             fwDir/fwHold; the velocity itself is the shipped f.vx,
+             already inside the state hash. */
+          const _mvDir=mv>0.02?1:mv<-0.02?-1:0;
+          if(_mvDir!==0&&_mvDir===f.fwDir)f.fwHold++;
+          else if(_mvDir!==0){ f.fwDir=_mvDir; f.fwHold=1; }
+          else { f.fwDir=0; f.fwHold=0; }
+          f.fwStride=f.fwHold>TUNING.STEP_TAP_TICKS&&Math.abs(f.vx)>=spd*TUNING.LUNGE_MIN_SPEED_FRAC;
+          f.fwBand=rangeBand(f);
+          const _tgt=mv*spd, _top=Math.max(1,spd);
+          const _accelDir=(_tgt!==0&&Math.sign(_tgt)===Math.sign(f.vx)&&Math.abs(_tgt)>Math.abs(f.vx))||(f.vx===0&&_tgt!==0);
+          let _rate=(_accelDir?TUNING.MOVE_ACCEL_RATE:TUNING.MOVE_DECEL_RATE)*_top;
+          if(_accelDir&&f.fwHold>=1&&f.fwHold<=TUNING.STEP_BURST_TICKS)_rate*=TUNING.STEP_ACCEL_MUL;
+          const _dv=_tgt-f.vx, _step=_rate*dt;
+          f.vx+=Math.abs(_dv)<=_step?_dv:Math.sign(_dv)*_step;
           /* S1: locomotion changes go through the transition table
              too (setState is idempotent for the current state) */
           if(Math.abs(mv)>0&&Math.abs(f.vx)>30){ setState(f,'walk'); f.walkPhase+=dt*11; }
@@ -4840,6 +5069,20 @@
           f.vx*=Math.pow(.001,dt);
           if(a.type==='light'||a.type==='light2')f.vx=f.facing*46;
           if(a.type==='heavy'&&a.t<a.def.startup)f.vx=f.facing*30;
+          /* STAGE 4 FOOTWORK §3/§4 — MOVEMENT DURING ATTACKS: a
+             LUNGE carries its stride velocity through startup
+             (overriding the generic decay above; Dooku's thrust
+             line below still wins for the thrust). LIGHT attacks
+             (light family incl. low) permit DRIFT during the active
+             phase only: held movement steers at LIGHT_DRIFT_FRAC of
+             top speed. HEAVY attacks get neither — rooted, as
+             shipped. */
+          if(a.moveCtx==='lunge'&&a.t<a.def.startup)f.vx=f.facing*(a.lungeVx||0);
+          if((a.type==='light'||a.type==='light2'||a.type==='light3'||a.type==='low')&&a.t>=a.def.startup&&a.t<=a.def.startup+a.def.active){
+            let _dmv=0; if(c.left)_dmv-=1; if(c.right)_dmv+=1;
+            if(typeof c.moveX==='number'&&c.moveX!==0)_dmv=clamp(c.moveX,-1,1);
+            if(_dmv!==0)f.vx=_dmv*topSpeedOf(f)*TUNING.LIGHT_DRIFT_FRAC;
+          }
       if(a.def.thrust&&a.t<a.def.startup)f.vx=f.facing*300; /* Dooku's lunge carries the thrust */
       if(a.def.spin)f.vx*=Math.pow(.01,dt); /* Maul plants for the revolution */
           /* ---- STAGE 2 FEINT: a HEAVY attack may be cancelled ONLY
@@ -4985,6 +5228,12 @@
             }
           }
           if(a.t>=a.def.startup+a.def.active+a.def.recovery){
+            /* STAGE 6 (item C): a completed swing that never connected
+               is a WHIFF with a classified cause — recorded to the LAB
+               (presentation-only, drills only) from facts the engine
+               already holds: the foe's i-frames, the range band and
+               the strike's own reach. */
+            if(TR&&!f.atkHasHit){ const _o=foe(f); if(_o){ const _gap=Math.abs(_o.x-f.x); LAB.last={move:String(a.def.id||a.type||'strike').toUpperCase(),dir:atkDirOf(a.def),result:'whiff',byPlayer:f===P,adv:0,pLeft:0,cLeft:0,tick:G.tick,why:_o.invulnT>0?'i-frames — the dodge carried them through the swing':(_gap>a.def.range+26?'range band — struck from the '+bandOfGap(_gap).toUpperCase()+' band (gap '+Math.round(_gap)+'), outside this strike\'s '+a.def.range+' reach':'trajectory evaded — the swing\'s line passed clear of their hurtbox')}; } }
             f.atk=null;
             if(f.y<GROUND-2)setState(f,'jump'); else setState(f, c.down?'crouch':'idle');
           }
@@ -5285,7 +5534,13 @@
            direction; guardDir = ticks spent guarding each direction;
            force = player cast count. All observable, all visible-info. */
         habit:{blockTime:0,fightTime:0,attacks:0,jumps:0,light:0,heavy:0,force:0,dodge:0,retreatT:0,dashIn:0,atkDir:{left:0,right:0,overhead:0,low:0},guardDir:{left:0,right:0,overhead:0,low:0},blockEvents:0,hitEvents:0},
-        debug:{decision:'neutral',reactMs:0,predGuard:'—',habits:''}};
+        debug:{decision:'neutral',reactMs:0,predGuard:'—',habits:''},
+        /* STAGE 5 A: analog-match CPU state — visible-info only: the
+           reaction log (spot tick vs scheduled reaction/press ticks,
+           the no-future-reading proof surface), the repeated-strike
+           direction ring, the timed-parry blade flick, the blade
+           feint window and the press flag */
+        ana:{log:[],seq:[],flick:null,feintUntil:0,feintAng:0,guardAng:null,pressing:false}};
     }
     /* S3: the player's habits as rates the counterplay + results
        screen read. Sample-gated: shares stay 0 until there is enough
@@ -5353,6 +5608,32 @@
       if(RUN&&RUN.bossHp){ d=Object.assign({},d,{reactTicks:Math.max(6,d.reactTicks-2),errDir:d.errDir*0.8,errParry:d.errParry*0.8,parryP:Math.min(0.85,d.parryP+0.08)}); }
       if(!f||G.phase!=='fight'){ f.ctl=c; return c; }
       const dist=Math.abs(o.x-f.x), toward=o.x>f.x?1:-1;
+      /* STAGE 5 A — ANALOG-AWARE CPU (local play only): active only
+         when the local player is analog-driven (o.blade.ana latched
+         by the saber-stick stamp). Online never reaches aiControl and
+         Local Versus has no CPU, so the gate is local by
+         construction. In an analog match the CPU defends PHYSICALLY:
+         it stamps the same ctl channels the player uses (ana /
+         anaAng / guard), its blade integrates through stepBlade, and
+         its blocks and parries resolve through the Stage 2 physical
+         grading (sweptBladeInterceptSim / resolveAnalogDefense) —
+         the same geometry, 9-tick window and numbers the player
+         faces. It reads ONLY visible state: the opponent's live
+         attack object once its wind-up exists, the blade state,
+         range band and fighter states — never buffered or future
+         inputs. Reaction choices, delays (Padawan 20 / Knight 13 /
+         Master 8) and error rates are the shipped ones; difficulty
+         maps to nothing else — no damage, HP, posture or speed
+         bonuses anywhere. Classic matches skip every ana branch, so
+         shipped Classic CPU behaviour is unchanged (plus C2). */
+      const anaMatch=!!(o.blade&&o.blade.ana);
+      const ana=ai.ana;
+      const anaStamp=(ang)=>{ c.ana=1; if(ang!=null)c.anaAng=ana2ClampArc(ang); };
+      /* the parry flick's angle at a tick: a 1.1 rad sweep across the
+         intercept anchor, timed to still be MOVING when the strike
+         lands (contact trails the press by a few ticks) — the tip
+         speed the Stage 2 grading measures is this sweep's speed */
+      const anaFlickAng=(fl,tick)=>fl.ga+fl.fs*(-0.55+1.1*clamp((tick-fl.from)/Math.max(1,fl.end-fl.from),0,1));
       /* ---- habit tracking: OBSERVABLE counters only (the player's
          current ctl edges and visible states — nothing hidden) ---- */
       const h=ai.habit; h.fightTime+=dt;
@@ -5457,6 +5738,22 @@
         ai.debug.reactMs=Math.round(d.reactTicks*1000/60);
         ai.debug.predGuard=wantDir;
         ai.debug.decision='react: '+kind+' '+wantDir;
+        if(anaMatch){
+          /* STAGE 5 A: log the honest reaction (proof surface), ring
+             the strike's direction for the pattern read, and set up
+             the physical defence — the intercept anchor for the
+             chosen direction and, for a timed parry, a blade flick
+             ACROSS that anchor signed by which side the attacker
+             stands on (visible geometry). The flick's tip speed and
+             opposition are what the Stage 2 grading measures: the
+             parry is earned by real blade motion or not at all. */
+          ana.log.push({spot:G.tick,react:reactTick,press:pressTick,kind:kind,dir:wantDir,diff:d.name});
+          if(ana.log.length>64)ana.log.shift();
+          ana.seq.push(oppAtk.dir||wantDir); if(ana.seq.length>6)ana.seq.shift();
+          ana.guardAng=ana2GuardAng(wantDir);
+          if(kind==='parry')ana.flick={ga:ana.guardAng,fs:-toward,from:Math.max(G.tick,pressTick-2),press:pressTick,end:pressTick+5};
+          else ana.flick=null;
+        }
       }
       if(!oppAtk&&ai.seenAtk){ ai.seenAtk=null; if(ai.reac&&G.tick>ai.guardUntil)ai.reac=null; }
       /* execute the scheduled reaction */
@@ -5464,7 +5761,7 @@
         const r=ai.reac;
         if(r.kind==='dodge'&&G.tick>=r.reactTick){ c.dash=1; ai.reac=null; ai.debug.decision='dodge'; f.ctl=c; return c; }
         if(r.kind==='parry'){
-          if(G.tick===r.pressTick){ c.block=1; if(r.dir==='low')c.down=1; else c.dir=r.dir; ai.guardUntil=G.tick+7+Math.round(5*A.guardMul); ai.debug.decision='PARRY '+r.dir; f.ctl=c; return c; }
+          if(G.tick===r.pressTick){ c.block=1; if(r.dir==='low')c.down=1; else c.dir=r.dir; if(anaMatch){ c.guard=1; anaStamp(ana.flick?anaFlickAng(ana.flick,G.tick):ana2GuardAng(r.dir)); } ai.guardUntil=G.tick+7+Math.round(5*A.guardMul); ai.debug.decision='PARRY '+r.dir; f.ctl=c; return c; }
           if(G.tick>r.pressTick+2)ai.reac=null; /* window missed — stays open, honestly */
           /* before the press: deliberately NOT blocking, so the
              press is a genuinely fresh guard input */
@@ -5479,6 +5776,12 @@
         /* hold the chosen guard while the threat resolves */
         const gd=ai.debug.predGuard;
         c.block=1; if(gd==='low')c.down=1; else if(gd)c.dir=gd;
+        if(anaMatch){ /* STAGE 5 A: hold the guard PHYSICALLY — GUARD
+           modifier up, sim blade on the intercept anchor (or holding
+           the parry flick's end pose through its contact ticks) */
+          c.guard=1;
+          anaStamp((ana.flick&&G.tick<=ana.flick.end)?anaFlickAng(ana.flick,G.tick):(ana.guardAng!=null?ana.guardAng:ana2GuardAng(gd||'right')));
+        }
         ai.state='defense'; f.ctl=c; return c;
       }
       if(ai.state==='defense')ai.state='neutral';
@@ -5499,7 +5802,19 @@
          an attack of its own into an incoming strike would be a
          suicide trade, not a tactic */
       const reacPending=ai.reac&&(ai.reac.kind==='parry'?G.tick<=ai.reac.pressTick:G.tick<=ai.reac.reactTick);
-      if(reacPending){ f.ctl=c; return c; }
+      if(reacPending){
+        /* STAGE 5 A: while the reaction is pending the CPU stays OPEN
+           (the shipped rule) — but in an analog match its blade is
+           already travelling: winding the parry flick, or moving onto
+           the block anchor. Positioning is not blocking: no guard is
+           raised before the shipped reaction tick, so a strike that
+           lands earlier still lands clean. */
+        if(anaMatch&&ai.reac){
+          if(ai.reac.kind==='parry'&&ana.flick)anaStamp(anaFlickAng(ana.flick,G.tick));
+          else if(ai.reac.kind==='block'&&ana.guardAng!=null)anaStamp(ana.guardAng);
+        }
+        f.ctl=c; return c;
+      }
 
       /* ================= THINK (utility, tick cadence) ================= */
       if(G.tick>=ai.nextThink){
@@ -5512,12 +5827,34 @@
         const pressureMode=turtle||o.posture<35||blocky;
         ai.state=pressureMode?'pressure':'neutral';
         const inRange=dist<=ideal+28;
+        /* STAGE 5 A: stamina / posture management (analog matches) —
+           spent on either resource, the CPU regroups: backs off and
+           makes no new commitments this think. A spent OPPONENT
+           (visible stamina / posture) arms the press used in the
+           in-range branch below. */
+        if(anaMatch){
+          ana.pressing=(o.stamina<18||o.posture<26);
+          if(f.posture<30||f.stamina<22){
+            ai.moveDir=-toward; ai.moveUntil=G.tick+12; ai.debug.decision='regroup (spent)';
+            f.ctl=c; return c;
+          }
+        }
         /* S3: form drift TOWARD the archetype's preferred forms —
            it cycles (the only legal path) until it lands in one,
            then mostly stays. Same ctl channel and legality rules. */
         if(f.formCd<=0&&f.formT<=0){
           const inPref=A.forms.indexOf(f.form)>=0;
           if(Math.random()<(inPref?0.015:(G.diff===2?0.10:0.06))){ c.formNext=1; ai.debug.decision='form shift → '+nextForm(f.form,1,f.char)+' ('+A.name+')'; f.ctl=c; return c; }
+        }
+        /* STAGE 5 A: blade feint (analog matches) — a wind-up pose
+           with no attack behind it, shown through the same physical
+           blade channel the player reads; the stance stamp at the
+           end of aiControl holds it for its window */
+        if(anaMatch&&dist>120&&dist<320&&Math.random()<d.feintP*0.4){
+          const fd=aiPickAtkDir(false,o,d);
+          ana.feintAng=fd==='left'?2.5:fd==='overhead'?-2.95:fd==='low'?-1.7:-2.45;
+          ana.feintUntil=G.tick+9;
+          ai.debug.decision='blade feint '+fd;
         }
         /* Force tools first — vs a turtling player these are the
            observable counter: pressure heavies, Pull and Choke.
@@ -5575,6 +5912,13 @@
              family's weight scaled by the archetype. Vs a high-block
              player the LOW branch swells (guard-break pressure) —
              adaptation on top of personality. */
+          /* STAGE 5 A: press the spent opponent (set in the think
+             preamble) — commit instead of rolling the utility mix */
+          if(anaMatch&&ana.pressing&&Math.random()<0.55){
+            if(Math.random()<0.6){ c.light=1; c.dir=aiPickAtkDir(false,o,d); ai.metrics.attacks++; ai.metrics.lights++; ai.debug.decision='press light (spent foe)'; }
+            else { c.heavy=1; c.dir=aiPickAtkDir(true,o,d); ai.metrics.attacks++; ai.metrics.heavies++; ai.debug.decision='press heavy (spent foe)'; }
+            f.ctl=c; return c;
+          }
           const r=Math.random();
           const wL=0.30*A.atkMul, wH=(pressureMode?0.30:0.18)*A.heavyMul, wLow=0.12*A.atkMul*(blocky?1.8:1), wBack=0.10*A.retreatMul, wDodge=0.08, wHop=0.06;
           if(r<wL){ c.light=1; c.dir=aiPickAtkDir(false,o,d); ai.metrics.attacks++; ai.metrics.lights++; ai.debug.decision='light test'; }
@@ -5596,7 +5940,27 @@
         if(f.state==='jump'&&ai.forceJumpAt&&G.tick>=ai.forceJumpAt&&!f.forceJumpUsed&&f.force>=10){ c.up=1; ai.forceJumpAt=0; }
       }
       /* spacing between decisions: honour the movement intent */
-      if(G.tick<=ai.moveUntil&&ai.moveDir!==0)c[ai.moveDir>0?'right':'left']=1;
+      if(G.tick<=ai.moveUntil&&ai.moveDir!==0){
+        const closing=Math.sign(o.vx)===-toward&&Math.abs(o.vx)>95;
+        if(!(dist<115&&closing&&ai.moveDir===toward))
+          c[ai.moveDir>0?'right':'left']=1;
+      }
+      /* STAGE 5 A: neutral blade craft (analog matches) — hold the
+         guard blade where the player's habits say the next strike is
+         likeliest: a three-in-a-row direction read outranks the
+         overall favourite; both are stance only, never a block, and
+         reactions still wait for the shipped delay. A live blade
+         feint window overrides the stance pose. */
+      if(anaMatch){
+        let na=TUNING.ANA2_DEFAULT_ANG;
+        const sq=ana.seq, sn=sq.length;
+        if(ana.flick&&G.tick<=ana.flick.end)na=anaFlickAng(ana.flick,G.tick);
+        else if(ana.guardAng!=null&&(ai.reac||G.tick<=ai.guardUntil))na=ana.guardAng;
+        else if(sn>=3&&sq[sn-1]===sq[sn-2]&&sq[sn-2]===sq[sn-3])na=ana2GuardAng(sq[sn-1]);
+        else if(hs.favShare>0.5)na=ana2GuardAng(hs.favDir);
+        if(G.tick<=ana.feintUntil)na=ana.feintAng;
+        anaStamp(na);
+      }
       f.ctl=c; return c;
     }
     /* CPU attack-direction choice: vs a visibly guarding player it
@@ -7544,7 +7908,7 @@
         const key=LAB.last.tick+'|'+LAB.last.move+'|'+LAB.last.result+'|'+LAB.last.byPlayer;
         if(key!==LABUI.lastKey){
           LABUI.lastKey=key;
-          flashTxt=(LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' '+LAB.last.dir.toUpperCase()+' — '+LAB.last.result.toUpperCase()+' · '+(LAB.last.adv>=0?'+':'−')+Math.abs(LAB.last.adv)+'f FOR YOU';
+          flashTxt=LAB.last.result==='whiff'?((LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' WHIFFED · WHY: '+(LAB.last.why||'no contact')):((LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' '+LAB.last.dir.toUpperCase()+' — '+LAB.last.result.toUpperCase()+' · '+(LAB.last.adv>=0?'+':'−')+Math.abs(LAB.last.adv)+'f FOR YOU'+(LAB.last.why?' · WHY: '+LAB.last.why:''));
           flashColor=LAB.last.result==='parry'?'#bfe6ff':'#ffe9a8';
         }
       }
@@ -7678,12 +8042,18 @@
         /* S3 LAB READOUTS: last exchange's frame advantage (your
            perspective) + the latest parry-timing verdict */
         const fe=$('drillFrame'), pe=$('drillParry');
-        if(fe)fe.textContent=LAB.last?('LAST EXCHANGE — '+(LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' '+LAB.last.dir.toUpperCase()+' on '+LAB.last.result.toUpperCase()+': '+(LAB.last.adv>=0?'+':'−')+Math.abs(LAB.last.adv)+'f FOR YOU (you actionable in '+LAB.last.pLeft+'f · dummy in '+LAB.last.cLeft+'f)'):'FRAME ADVANTAGE — land or block a strike and the +/− frames land here.';
+        if(fe)fe.textContent=LAB.last?('LAST EXCHANGE — '+(LAB.last.byPlayer?'YOUR ':'DUMMY ')+LAB.last.move+' '+LAB.last.dir.toUpperCase()+' on '+LAB.last.result.toUpperCase()+': '+(LAB.last.adv>=0?'+':'−')+Math.abs(LAB.last.adv)+'f FOR YOU (you actionable in '+LAB.last.pLeft+'f · dummy in '+LAB.last.cLeft+'f)'+(LAB.last.why?' · WHY: '+LAB.last.why:'')):'FRAME ADVANTAGE — land or block a strike and the +/− frames land here.';
         if(pe)pe.textContent=LAB.parry?LAB.parry.txt:'PARRY TIMING — fresh guard in the strike direction within 9f of contact; feedback lands here.';
+        /* STAGE 4 FOOTWORK §6: one range-band line in the lab stack
+           (it fades with the stack under the LAB TEXT rules, like
+           every other labTxt line) */
+        const re=$('drillRange');
+        if(re){ const _gap=Math.abs(C.x-P.x); re.textContent='RANGE — '+bandOfGap(_gap).toUpperCase()+' · gap '+Math.round(_gap)+' · you '+(P.fwStride?'STRIDING':(Math.abs(P.vx)>24?'MOVING':'SET'))+(P.atk&&P.atk.moveCtx?' · atk '+P.atk.moveCtx.toUpperCase():''); }
       }
       if(TR.id!=='free'){
         const fe2=$('drillFrame'), pe2=$('drillParry');
         if(fe2)fe2.textContent=''; if(pe2)pe2.textContent='';
+        const re2=$('drillRange'); if(re2)re2.textContent='';
       }
       else if(TR.id==='parry'){ info=say||'Fresh-timed guard in the announced direction, as the strike lands.'; score='PARRIES '+TR.score+' / '+TR.tries+' · PASS: 7 OF 10'; }
       else if(TR.id==='guard'){ info=say||'Hold the announced guard direction before the strike lands.'; score='GUARDED '+TR.score+' / '+TR.tries+' · STREAK '+TR.streak+' (BEST '+TR.best+') · PASS: 8 OF 12'; }
@@ -7799,15 +8169,16 @@
     function drillResolveGuardAttempt(){
       TR.tries++;
       const parried=P.stats.parries>TR.baseParries, blocked=P.stats.blocks>TR.baseBlocks, hit=P.hp<TR.baseHp-1.5;
+      const _why=(LAB.last&&!LAB.last.byPlayer&&(G.tick-LAB.last.tick)<240)?LAB.last.why:(TR._lastWhy||null);
       if(TR.id==='parry'){
-        if(parried){ TR.score++; drillSay('✓ CLEAN PARRY!'); }
-        else if(blocked)drillSay('BLOCKED — a parry needs a FRESH press timed to the strike');
-        else drillSay('✗ HIT — match '+dirName(TR.annDir)+' and tap guard as it lands');
+        if(parried){ TR.score++; drillSay('✓ CLEAN PARRY! WHY: '+(_why||'inside the window — fresh press, direction matched')); }
+        else if(blocked)drillSay('BLOCKED — WHY: '+(_why||'clean block')+' — a parry needs a FRESH press inside the 9f window');
+        else drillSay('✗ HIT — WHY: '+(_why||'guard down')+' — match '+dirName(TR.annDir)+' and tap guard as it lands');
         P.hp=100;
         if(TR.tries>=10){ endDrill(TR.score>=7,'Clean parries: '+TR.score+' of 10. Pass mark: 7.'); return; }
       }else{
-        if(parried||blocked){ TR.score++; TR.streak++; TR.best=Math.max(TR.best,TR.streak); drillSay('✓ GUARDED — streak '+TR.streak); }
-        else { TR.streak=0; drillSay('✗ '+(hit?'WRONG GUARD — it was ':'MISSED — it was ')+dirName(TR.annDir)); }
+        if(parried||blocked){ TR.score++; TR.streak++; TR.best=Math.max(TR.best,TR.streak); drillSay('✓ GUARDED — WHY: '+(_why||(parried?'inside the window':'clean block — direction matched'))+' — streak '+TR.streak); }
+        else { TR.streak=0; drillSay('✗ '+(hit?('HIT — WHY: '+(_why||'wrong direction')+' — it was '):'MISSED — it was ')+dirName(TR.annDir)); }
         P.hp=100;
         if(TR.tries>=12){ endDrill(TR.score>=8,'Guarded: '+TR.score+' of 12 · best streak '+TR.best+'. Pass mark: 8.'); return; }
       }
@@ -7815,13 +8186,14 @@
     }
     function drillResolveFeint(){
       TR.tries++;
+      const _whyF=(LAB.last&&(G.tick-LAB.last.tick)<240)?LAB.last.why:(TR._lastWhy||null);
       if(TR.feinted){
-        if(TR.playerSwung){ TR.score=Math.max(0,TR.score-1); drillSay('✗ BAITED! You swung at a feint (−1) — the dummy punishes'); TR.p2='punish'; }
-        else { TR.score++; drillSay('✓ HELD — you read the feint'); TR.p2='approach'; TR.coolT=0.8; }
+        if(TR.playerSwung){ TR.score=Math.max(0,TR.score-1); drillSay('✗ BAITED! You swung at a feint (−1) — WHY: you attacked during its startup; the feint cancelled before its active frames — the dummy punishes'); TR.p2='punish'; }
+        else { TR.score++; drillSay('✓ HELD — you read the feint (WHY: it cancelled inside its startup — no strike ever came)'); TR.p2='approach'; TR.coolT=0.8; }
       }else{
-        if(P.stats.hits>TR.baseHits){ TR.score++; drillSay('✓ WHIFF PUNISHED'); }
-        else if(TR.dummyHit)drillSay('✗ THE HEAVY LANDED — dodge or guard it, then punish');
-        else drillSay('✗ NO PUNISH — strike during its recovery');
+        if(P.stats.hits>TR.baseHits){ TR.score++; drillSay('✓ WHIFF PUNISHED — WHY: your strike landed while it was still in recovery'); }
+        else if(TR.dummyHit)drillSay('✗ THE HEAVY LANDED — WHY: '+(_whyF||'it connected clean')+' — dodge or guard it, then punish');
+        else drillSay('✗ NO PUNISH — WHY: its recovery ended before your strike arrived'+(LAB.last&&LAB.last.byPlayer&&LAB.last.result==='whiff'?' (your swing whiffed: '+LAB.last.why+')':''));
         TR.p2='approach'; TR.coolT=0.8;
       }
       P.hp=100;
@@ -7838,7 +8210,9 @@
       else if(!TR.pulledFlag&&P.hp>=TR.baseHp-1){ ok=true; why='UNTOUCHED'; }
       if(ok)TR.score++;
       TR.tries++;
-      drillSay((ok?'✓ ':'✗ ')+why+' — '+TR.score+' / '+TR.tries);
+      const _whyC=ok?(why==='PARRIED'?'fresh guard inside the window met the cast':why==='BLOCKED'?'guard held against the cast':why==='DODGED'?'dodge i-frames carried you through it':'the cast never connected')
+        :(TR.pulledFlag?'the Pull connected — no dodge, guard or escape beat it':TR.chokedFlag?'the Choke took hold — the escape window was missed':'the cast landed clean — no counter beat it');
+      drillSay((ok?'✓ ':'✗ ')+why+' — WHY: '+_whyC+' — '+TR.score+' / '+TR.tries);
       TR.dodgedFlag=false; TR.pulledFlag=false; TR.chokedFlag=false;
       P.hp=100;
       if(TR.tries>=8)endDrill(TR.score>=5,'Force counters: '+TR.score+' of 8. Pass mark: 5.');
@@ -7846,6 +8220,11 @@
     function drillTick(dt){
       if(!TR||G.phase!=='fight')return;
       TR.timeT+=dt;
+      /* STAGE 6: snapshot the WHY of the dummy's latest exchange the
+         moment it lands — a scored drill resolves its attempt up to
+         ~1.2s later, and the player's own exchanges in between must
+         not overwrite the reason the attempt is scored on */
+      if(LAB.last&&!LAB.last.byPlayer&&LAB.last.tick!==TR._whyTick){ TR._whyTick=LAB.last.tick; TR._lastWhy=LAB.last.why; TR._lastWhyResult=LAB.last.result; }
       if(TR.id==='free'){
         /* a fresh parry press that met NO strike expires into the
            lockout — that transition is the whiff feedback moment */
@@ -7864,7 +8243,7 @@
             drillSay('STRING COMPLETE — '+(2-TR.completions)+' TO GO');
           }
         }
-        else if(TR.progress>0&&P.combo===0){ TR.drops++; TR.progress=0; TR.comboSeen=0; drillSay('DROPPED — the string resets'); }
+        else if(TR.progress>0&&P.combo===0){ TR.drops++; TR.progress=0; TR.comboSeen=0; drillSay('DROPPED — WHY: '+(LAB.last&&LAB.last.byPlayer&&(G.tick-LAB.last.tick)<240?(LAB.last.result==='whiff'?('a swing whiffed — '+LAB.last.why):LAB.last.result==='block'?'a swing was BLOCKED — chains only continue on hit':'the 0.9s combo window lapsed between hits'):'the 0.9s combo window lapsed between hits')+' — the string resets'); }
         if(TR.timeT>120){ endDrill(false,'Time up — completions '+TR.completions+' / 2, drops '+TR.drops+'.'); return; }
       }
       if(TR.id==='force'&&TR.p2==='castwatch'){
@@ -7955,6 +8334,7 @@
         sabers:JSON.parse(JSON.stringify(SABER_CFG)),bestOf:BEST_OF};
     }
     function persistLastSetup(){
+      if(!saveReady)return;
       try{ window.localStorage.setItem(SETUP_KEY,JSON.stringify(snapshotSetup())); }catch(e){ /* session-only */ }
       refreshSetupSummary();
     }
@@ -8028,7 +8408,14 @@
       const a=$('announceTxt'); a.innerHTML=html; a.classList.add('show');
       clearTimeout(announce._t); announce._t=setTimeout(()=>a.classList.remove('show'),ms||1100);
     }
-    function freshStats(){ return {parries:0,parryAttempts:0,blocks:0,hits:0,punishes:0,maxCombo:0,pulls:0,specs:0}; }
+    function freshStats(){ return {parries:0,parryAttempts:0,blocks:0,hits:0,punishes:0,maxCombo:0,pulls:0,specs:0,
+      /* STAGE 6 combat statistics: thrown (strike attempts, for
+         accuracy), counters (riposte/counter hits), guard breaks
+         dealt/taken, and guard-reaction timing (the defender's fresh
+         press tick minus the attack's start tick, summed over the
+         parries + blocks where it is measurable). Presentation/stat
+         state only — never read by the sim, never hashed. */
+      thrown:0,counters:0,gbDealt:0,gbTaken:0,reactSum:0,reactN:0}; }
     function startMatch(){
       latchSwept(); /* STAGE 1 PASS: the swept-collision flag is read once, here, for the whole match */
       TR=null; CINE.pending=true; /* CINEMATIC INTRO: armed here — startRound round 1 consumes it; drills never call startMatch */ $('drillHud').classList.remove('on','labFade','labOff'); const _lf2=$('labFlash'); if(_lf2)_lf2.classList.remove('on'); $('drillScreen').classList.add('hidden');
@@ -8154,7 +8541,7 @@
       const s=SF.stats;
       const pAtt=Math.max(0,s.parryAttempts||0), pAcc=pAtt?Math.round(100*s.parries/pAtt):0;
       const winnerF=G.winsP>G.winsC?P:C;
-      $('endStats').innerHTML='Rounds '+G.winsP+' – '+G.winsC+' · Winner: <b style="color:#fff">'+winnerF.cfg.name+'</b><br>Parry accuracy <b style="color:#fff">'+s.parries+' / '+pAtt+' ('+pAcc+'%)</b> · Successful punishes <b style="color:#fff">'+s.punishes+'</b><br>Clean hits <b style="color:#fff">'+s.hits+'</b> · Longest combo <b style="color:#fff">'+s.maxCombo+' hits</b> · Blocks <b style="color:#fff">'+s.blocks+'</b> · Force Pulls <b style="color:#fff">'+s.pulls+'</b> · Specials <b style="color:#fff">'+s.specs+'</b><br>'+(G.online?('Online duel · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'):('Difficulty: '+DIFF[G.diff].name+' · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'));
+      $('endStats').innerHTML='Rounds '+G.winsP+' – '+G.winsC+' · Winner: <b style="color:#fff">'+winnerF.cfg.name+'</b><br>Parry accuracy <b style="color:#fff">'+s.parries+' / '+pAtt+' ('+pAcc+'%)</b> · Successful punishes <b style="color:#fff">'+s.punishes+'</b><br>Clean hits <b style="color:#fff">'+s.hits+'</b> · Longest combo <b style="color:#fff">'+s.maxCombo+' hits</b> · Blocks <b style="color:#fff">'+s.blocks+'</b> · Force Pulls <b style="color:#fff">'+s.pulls+'</b> · Specials <b style="color:#fff">'+s.specs+'</b><br>Strike accuracy <b style="color:#fff">'+(s.thrown?Math.round(100*s.hits/s.thrown):0)+'%</b> ('+s.hits+' / '+(s.thrown||0)+') · Counters <b style="color:#fff">'+(s.counters||0)+'</b> · Guard breaks <b style="color:#fff">'+(s.gbDealt||0)+' dealt / '+(s.gbTaken||0)+' taken</b> · Avg guard reaction <b style="color:#fff">'+(s.reactN?Math.round(s.reactSum/s.reactN)+'f':'—')+'</b><br>'+(G.online?('Online duel · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'):('Difficulty: '+DIFF[G.diff].name+' · Arena: '+ARENA_NAMES[G.arena]+' · You fought as '+SF.cfg.name+'.'));
       const en=$('endOnlineNote'); if(en){ if(G.online){ en.style.display='block'; en.textContent=G.forfeitWin?'Opponent disconnected — the match is yours.':'Online duel complete.'; } else en.style.display='none'; }
       /* S3: what the CPU read + whether adaptive difficulty moved —
          both from the real tracked state, local matches only */
@@ -8453,7 +8840,7 @@
        presentation: it reads no input into the sim and gates nothing —
        leaving mid-finisher works exactly as leaving mid-round-end.
        Settings: FINISHERS toggle; Reduced Motion = auto-off. */
-    const FIN={active:false,t:0,dur:2.2,kind:null,winner:null,loser:null};
+    const FIN={active:false,t:0,dur:2.2,kind:null,winner:null,loser:null,blow:null};
     /* ================= VADER'S NOOOO (finisher flourish) =================
        A Vader-only layer on the gore finisher sever: when Darth Vader
        loses a round to the FINISHER (startFinisher — the sever system's
@@ -8502,9 +8889,28 @@
       if(!(typeof G!=='undefined'&&G&&G.reducedMotion))shake=Math.max(shake,7); /* existing shake scale; Reduced Motion tames it */
     }
     const FIN_MAX=3.5;
-    function finisherKindFor(w){
+    function weaponTypeOf(f){ return f&&f.char==='maul'?'staff':f&&f.char==='ahsoka'?'dual':'single'; }
+    const FIN_LOG=[];
+    function finisherKindFor(w,blow){
       const prof=PROFILES[w.char], trig=prof&&prof.finisher&&prof.finisher.trigger;
       const sig=!!(trig&&trig.forms&&trig.forms.indexOf(w.form)>=0);
+      /* STAGE 5 B3: when the killing blow is known, the variant
+         MATCHES it — the blow's direction crossed with the winner's
+         weapon type (single / staff / dual), each weapon reading
+         the same direction differently. The signature choke (Vader /
+         Sidious in a signature form) survives overhead and side
+         kills; a low kill always stays grounded. No recorded blow
+         (Force, projectile or timeout kills) falls back to the
+         shipped character selection below, unchanged. All finisher
+         rules are untouched: round-ending KO only, skippable after
+         0.5s, 3.5s cap, toggle + Reduced Motion behaviour. */
+      if(blow&&blow.dir){
+        const wt=blow.weapon||weaponTypeOf(w);
+        if((w.char==='vader'||w.char==='sidious')&&sig&&blow.dir!=='low')return 'choke';
+        if(blow.dir==='overhead')return wt==='dual'?'salute':'raise';
+        if(blow.dir==='low')return wt==='staff'?'push':wt==='dual'?'raise':'salute';
+        return wt==='staff'?'salute':'push';
+      }
       if(w.char==='vader'||w.char==='sidious')return sig?'choke':'raise';
       if(w.char==='maul'||w.char==='dooku')return 'raise';
       return sig?'push':'salute';
@@ -8512,7 +8918,8 @@
     function startFinisher(winner,loser){
       endFinisher(true);
       if(!winner||!loser||typeof G==='undefined'||!G||!G.finishers||G.reducedMotion||typeof TR!=='undefined'&&TR)return;
-      FIN.active=true; FIN.t=0; FIN.kind=finisherKindFor(winner); FIN.winner=winner; FIN.loser=loser;
+      FIN.active=true; FIN.t=0; FIN.blow=winner._lastBlow||null; FIN.kind=finisherKindFor(winner,FIN.blow); FIN.winner=winner; FIN.loser=loser;
+      FIN_LOG.push({tick:(typeof G!=='undefined'&&G)?G.tick:-1,winner:winner.char,dir:FIN.blow?FIN.blow.dir:null,type:FIN.blow?FIN.blow.type:null,weapon:FIN.blow?FIN.blow.weapon:null,kind:FIN.kind}); if(FIN_LOG.length>32)FIN_LOG.shift(); /* STAGE 5 B3 proof surface */
       winner._fin=FIN.kind; loser._fin=(FIN.kind==='choke')?'lift':'fall'; loser._finLift=0;
       goreSever(loser); /* GORE: the finisher KO takes the loser's saber hand (presentation only; no-op when GORE is OFF) */
       const prof=PROFILES[winner.char];
@@ -8531,7 +8938,7 @@
     function endFinisher(silent){
       if(FIN.winner)FIN.winner._fin=null;
       if(FIN.loser){ FIN.loser._fin=null; FIN.loser._finLift=0; }
-      FIN.active=false; FIN.t=0; FIN.winner=null; FIN.loser=null; FIN.kind=null;
+      FIN.active=false; FIN.t=0; FIN.winner=null; FIN.loser=null; FIN.kind=null; FIN.blow=null;
       NOOO.active=false;
       const cap=$('finCap'); if(cap)cap.classList.remove('on','noooo');
       const bt=$('finBarT'), bb=$('finBarB'); if(bt)bt.classList.remove('on'); if(bb)bb.classList.remove('on');
@@ -9423,10 +9830,13 @@
     try{ applySavedSabers(); setFinishers(SAVE.finishers); setCine(SAVE.cine); setBladeLock(SAVE.bladeLock); setGore(SAVE.gore); }catch(e){}
     /* STAGE 1 PASS boot apply: swept-collision flag (own isolated group, same pattern) */
     try{ setSweptCollision(SAVE.sweptCollision); }catch(e){}
-    saveReady=true; persistSave();
     /* MENU CLEANUP boot: restore the last-used duel setup (new key;
-       the settings save above was already applied and is untouched) */
+       the settings save above was already applied and is untouched).
+       The restore runs BEFORE saveReady flips: its setters' persists are
+       saveReady-gated, so nothing can overwrite the stored setup before
+       it is read; the boot persist below then writes the restored state. */
     try{ applyLastSetup(loadLastSetup()); }catch(e){}
+    saveReady=true; persistSave();
     persistLastSetup();
     /* ---- STAGE 3: drill launchers + drill result buttons ---- */
     document.querySelectorAll('.drillBtn').forEach(b=>b.addEventListener('click',()=>{ startTraining(b.dataset.drill); }));
@@ -9527,7 +9937,28 @@
     window.addEventListener('orientationchange',()=>setTimeout(fitArena,60));
     fitArena();
     const startDuelBtn=$('startDuelBtn');
-    if(startDuelBtn)startDuelBtn.addEventListener('click',()=>{ audioInit(); $('startBtn').click(); });
+    if(startDuelBtn)startDuelBtn.addEventListener('click',(event)=>{
+      event.preventDefault();
+      if(startDuelBtn.dataset.launching==='1')return;
+      startDuelBtn.dataset.launching='1';
+      try{
+        audioInit();
+        persistLastSetup();
+        G.online=false; RUN=null; G.versus=false; G.cpuChar=chosenRival; G.winTarget=2;
+        document.body.classList.remove('versus-on');
+        NET_SABERS=null; _saberSig=''; G.mode='fight';
+        wipeGo(); fadeOutMenuTheme();
+        $('menu').classList.add('hidden'); $('endScreen').classList.add('hidden');
+        fitArena(); tryLockLandscape(); startMatch();
+      }catch(err){
+        console.error('[Duelists] Continue failed:',err);
+        G.mode='menu';
+        $('menu').classList.remove('hidden');
+        showPanel('panelFight');
+        const status=$('menuHint');
+        if(status)status.textContent='Unable to start quick duel. Choose BEGIN DUEL below.';
+      }finally{startDuelBtn.dataset.launching='0';}
+    });
     $('startBtn').addEventListener('click',()=>{
       audioInit(); persistLastSetup(); G.online=false; RUN=null; G.versus=false; G.cpuChar=chosenRival; G.winTarget=2; document.body.classList.remove('versus-on'); NET_SABERS=null; _saberSig=''; G.mode='fight'; wipeGo(); fadeOutMenuTheme();
       $('menu').classList.add('hidden'); $('endScreen').classList.add('hidden');
@@ -9640,7 +10071,7 @@
       myChar:'vader',myReady:false,status:'off',rtt:0,rematchMe:false,rematchOpp:false,
       graceUntil:0,graceReason:'',seed:0,desynced:false};
     const OF={tick:0,delay:3,localBuf:new Map(),remoteBuf:new Map(),hashes:new Map(),rHashes:new Map(),
-      sentUpTo:2,lastLocalPacked:0,pendingDelay:null,stallSince:0};
+      sentUpTo:2,lastLocalPacked:0,pendingDelay:null,stallSince:0,lastRetryAt:0};
     const DIR_CODE={left:1,overhead:2,right:3};
     const CODE_DIR={1:'left',2:'overhead',3:'right'};
     /* one ctl <-> one small integer: 12 input bits + 2 direction bits +
@@ -9682,6 +10113,7 @@
         /* BLADE CONTACT state enters the hash exactly like the clash
            state around it: swing contact (angle/tick), bind pose and
            guard-meet pose are all deterministic sim state */
+        mix(f.atk&&f.atk.moveCtx==='lunge'?11:f.atk&&f.atk.moveCtx==='retreat'?7:0); mix(f.atk?f.atk.def.range:0); mix(f.atk?f.atk.def.damage:0); mix(f.atk?Math.round(f.atk.def.recovery*60):-1); /* STAGE 4: lunge/retreat classification + tuned attack data are sim state */
         mix(f.atk&&f.atk.contactAng!=null?Math.round(f.atk.contactAng*100):-999); mix(f.atk&&f.atk.contactT!=null?Math.round(f.atk.contactT*60):-1);
         mix(Math.round((f.bindT||0)*60)); mix(Math.round((f.bindAng||0)*100)); mix(Math.round((f.meetT||0)*60)); mix(Math.round((f.meetAng||0)*100));
         mix(Math.round((f.bindX||0)*2)); mix(Math.round((f.bindY||0)*2)); mix(Math.round((f.meetX||0)*2)); mix(Math.round((f.meetY||0)*2));
@@ -9707,7 +10139,7 @@
     }
     function onlineResetClocks(){
       OF.tick=0; OF.localBuf.clear(); OF.remoteBuf.clear(); OF.hashes.clear(); OF.rHashes.clear();
-      OF.sentUpTo=OF.delay-1; OF.lastLocalPacked=packCtl(emptyCtl()); OF.pendingDelay=null; OF.stallSince=0;
+      OF.sentUpTo=OF.delay-1; OF.lastLocalPacked=packCtl(emptyCtl()); OF.pendingDelay=null; OF.stallSince=0; OF.lastRetryAt=0;
       NET.desynced=false; NET.graceUntil=0;
     }
     /* sample the LOCAL fighter's input once per executed fight tick and
@@ -9764,6 +10196,21 @@
     function onlineStallTick(){
       const now=performance.now();
       if(!OF.stallSince)OF.stallSince=now;
+      /* Stage 6: bounded input replay during lockstep stalls. Replaying
+         identical, immutable frames is safe because the receiver keeps
+         the first accepted value. Helps recover from dropped relay frames
+         without predicting or advancing either simulation. */
+      if(NET.ws&&NET.ws.readyState===1&&now-OF.stallSince>450&&now-OF.lastRetryAt>=650){
+        const from=Math.max(0,OF.tick-12), to=Math.min(OF.sentUpTo,OF.tick+OF.delay+3);
+        let first=-1, batch=[];
+        for(let t=from;t<=to;t++){
+          if(!OF.localBuf.has(t)){if(batch.length)break;continue;}
+          if(first<0)first=t;
+          batch.push(OF.localBuf.get(t));
+        }
+        if(first>=0&&batch.length)netSend({k:'in',f:first,i:batch});
+        OF.lastRetryAt=now;
+      }
       if(NET.graceUntil){
         const left=Math.max(0,Math.ceil((NET.graceUntil-now)/1000));
         netBanner(NET.graceReason+' — FORFEIT IN '+left+'s',true);
@@ -9904,11 +10351,6 @@
         rb.textContent=NET.myReady?'READY ✓ — TAP TO UNREADY':'READY';
       }else{ home.style.display='block'; lob.style.display='none'; }
     }
-    function onlineMakeCode(){
-      const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s='D';
-      for(let i=0;i<5;i++)s+=A[(Math.random()*A.length)|0];
-      return s;
-    }
     function onlineConnect(roomCode){
       onlineDisconnect(true);
       NET.status='connecting'; onlineUi(roomCode&&!NET.host?'Joining room '+escHtml(roomCode)+'…':'Creating your room…');
@@ -9920,7 +10362,7 @@
       let opened=false;
       const failT=setTimeout(()=>{ if(!opened&&NET.ws===ws){ NET.status='error'; try{ws.close();}catch(e){} onlineUi('The server did not answer in time — it may be waking up. Try again in a few seconds.'); } },14000);
       ws.onopen=()=>{ opened=true; clearTimeout(failT); NET.status='connected'; };
-      ws.onmessage=(ev)=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } if(!m||typeof m.type!=='string')return; onlineOnRelay(m); };
+      ws.onmessage=(ev)=>{ if(typeof ev.data!=='string'||ev.data.length>65536)return; let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } if(!m||typeof m.type!=='string')return; onlineOnRelay(m); };
       ws.onclose=()=>{
         clearTimeout(failT);
         if(NET.ws!==ws)return; /* a newer socket already replaced this one */
@@ -9942,9 +10384,6 @@
     function onlineOnRelay(m){
       if(m.type==='dale:welcome'){
         const peers=m.peers||[];
-        if(NET.host&&peers.length>=1){ /* our fresh code was already taken — pick another and retry once */
-          onlineDisconnect(true); NET.host=true; onlineConnect(onlineMakeCode()); return;
-        }
         if(peers.length>=2){ onlineDisconnect(true); NET.status='off'; onlineUi('That room already has a duel in progress — check the code, or create your own room.'); return; }
         NET.id=m.id; NET.room=m.room; NET.status='connected';
         if(peers.length===1){ NET.oppId=peers[0].id; NET.oppName=peers[0].name||'PLAYER'; }
@@ -9969,15 +10408,32 @@
       }
       if(m.type==='dale:error'){ onlineUi('Server said: '+escHtml(m.code||'error')); return; }
       if(m.type!=='dale:state'||!m.dueler)return;
-      if(NET.oppId&&m.from&&m.from!==NET.oppId)return; /* paired opponent only — extra room members are ignored */
+      if(!NET.oppId||!m.from||m.from!==NET.oppId)return; /* paired opponent only — extra room members are ignored */
       const d=m.dueler;
       switch(d.k){
         case 'pick': NET.oppChar=(CHAR_IDS.indexOf(d.char)>=0?d.char:'vader'); if(d.name)NET.oppName=String(d.name).slice(0,16); NET.oppSaber=normSaber(d.saber,NET.oppChar); onlineUi(); break;
         case 'ready': NET.oppReady=!!d.ready; onlineUi(); onlineTryStart(); break;
         case 'start': if(!NET.host&&!(G.online&&G.mode==='fight'&&G.phase!=='over'))onlineStartMatch(d); break;
-        case 'in': if(G.online){ const arr=d.i||[]; for(let j=0;j<arr.length;j++)OF.remoteBuf.set(d.f+j,arr[j]); } break;
-        case 'hash': if(G.online){ OF.rHashes.set(d.t,d.h); const mine=OF.hashes.get(d.t); if(mine!=null&&mine!==d.h)onlineDesync(); } break;
-        case 'delay': if(G.online&&!NET.host)OF.pendingDelay={d:d.d,at:d.at}; break;
+        case 'in': if(G.online){
+          if(!Number.isSafeInteger(d.f)||!Array.isArray(d.i)||d.i.length<1||d.i.length>256)break;
+          const earliest=Math.max(0,OF.tick-120), latest=OF.tick+300;
+          if(d.f>latest||d.f+d.i.length<=earliest)break;
+          for(let j=0;j<d.i.length;j++){
+            const frame=d.f+j,packed=d.i[j];
+            if(frame<earliest||frame>latest||!Number.isInteger(packed)||packed<0||packed>1073741823)continue;
+            /* An already accepted frame cannot be rewritten by a later packet. */
+            if(!OF.remoteBuf.has(frame))OF.remoteBuf.set(frame,packed);
+          }
+        } break;
+        case 'hash': if(G.online){
+          if(!Number.isSafeInteger(d.t)||d.t<Math.max(0,OF.tick-120)||d.t>OF.tick+120||!(typeof d.h==='string'&&/^[0-9a-z]{1,7}$/.test(d.h)))break;
+          OF.rHashes.set(d.t,d.h);
+          const mine=OF.hashes.get(d.t); if(mine!=null&&mine!==d.h)onlineDesync();
+        } break;
+        case 'delay': if(G.online&&!NET.host){
+          if(!Number.isSafeInteger(d.d)||d.d<1||d.d>30||!Number.isSafeInteger(d.at)||d.at<OF.tick||d.at>OF.tick+600)break;
+          OF.pendingDelay={d:d.d,at:d.at};
+        } break;
         case 'ping': netSend({k:'pong',t:d.t}); break;
         case 'pong': { const r=performance.now()-d.t; if(r>=0&&r<10000){ NET.rtt=NET.rtt?NET.rtt*0.6+r*0.4:r; onlineAdaptDelay(); if(!G.online)onlineUi(); } break; }
         case 'rematch': NET.rematchOpp=true; if(G.online&&G.phase==='over'){ const en=$('endOnlineNote'); if(en){ en.style.display='block'; en.textContent='Your opponent wants a rematch — tap REMATCH to accept, or BACK TO LOBBY to decline.'; } onlineTryRematchStart(); } break;
@@ -9994,7 +10450,7 @@
     }));
     document.querySelectorAll('.oabtn').forEach(b=>b.addEventListener('click',()=>{ audioInit(); setArena(b.dataset.oarena); }));
     const createBtn=$('createRoomBtn');
-    if(createBtn)createBtn.addEventListener('click',()=>{ audioInit(); NET.host=true; onlineConnect(onlineMakeCode()); });
+    if(createBtn)createBtn.addEventListener('click',()=>{ audioInit(); NET.host=true; onlineConnect(); });
     const joinBtn=$('joinRoomBtn');
     if(joinBtn)joinBtn.addEventListener('click',()=>{
       audioInit();
@@ -10052,6 +10508,8 @@
         stats:{modes:{cpu:{w:0,l:0},ladder:{w:0,l:0},survival:{w:0,l:0},boss:{w:0,l:0},versus:{w:0,l:0},online:{w:0,l:0}},
           byChar:{vader:{w:0,l:0},obi:{w:0,l:0},maul:{w:0,l:0},ahsoka:{w:0,l:0},dooku:{w:0,l:0},sidious:{w:0,l:0},inaam:{w:0,l:0}},
           formUse:{I:0,II:0,III:0,IV:0,V:0,VI:0,VII:0},
+          /* STAGE 6: lifetime combat statistics (default-filled on old saves by s5MergeProg — nothing is wiped) */
+          combat:{matches:0,strikes:0,hits:0,parries:0,blocks:0,counters:0,gbDealt:0,gbTaken:0,reactSum:0,reactN:0},
           longestCombo:0,ladderClears:0,ladderRungs:0,ladderBest:0,survivalBest:0,bossClears:0,bossBestMs:0}};
     }
     function s5MergeProg(base,s){
@@ -10063,6 +10521,7 @@
         if(ss.modes)for(const m in base.stats.modes){ const r=ss.modes[m]; if(r)base.stats.modes[m]={w:r.w|0,l:r.l|0}; }
         if(ss.byChar)for(const c in base.stats.byChar){ const r=ss.byChar[c]; if(r)base.stats.byChar[c]={w:r.w|0,l:r.l|0}; }
         if(ss.formUse)for(const f in base.stats.formUse)base.stats.formUse[f]=ss.formUse[f]|0;
+        if(ss.combat)for(const k in base.stats.combat)base.stats.combat[k]=ss.combat[k]|0;
         for(const k of ['longestCombo','ladderClears','ladderRungs','ladderBest','survivalBest','bossClears','bossBestMs'])if(typeof ss[k]==='number'&&isFinite(ss[k]))base.stats[k]=ss[k];
       }
       return base;
@@ -10203,6 +10662,7 @@
         if(st.byChar[myChar])st.byChar[myChar][won?'w':'l']++;
         if(SF&&SF.form)st.formUse[SF.form]=(st.formUse[SF.form]||0)+1;
       }
+      if(SF&&SF.stats){ const cb6=st.combat||(st.combat={matches:0,strikes:0,hits:0,parries:0,blocks:0,counters:0,gbDealt:0,gbTaken:0,reactSum:0,reactN:0}), ss6=SF.stats; cb6.matches++; cb6.strikes+=ss6.thrown||0; cb6.hits+=ss6.hits||0; cb6.parries+=ss6.parries||0; cb6.blocks+=ss6.blocks||0; cb6.counters+=ss6.counters||0; cb6.gbDealt+=ss6.gbDealt||0; cb6.gbTaken+=ss6.gbTaken||0; cb6.reactSum+=ss6.reactSum||0; cb6.reactN+=ss6.reactN||0; }
       if(SF&&SF.stats&&SF.stats.maxCombo>st.longestCombo)st.longestCombo=SF.stats.maxCombo;
       const E=$('endRun');
       if(G.online){
@@ -10365,6 +10825,7 @@
     function renderProgress(){
       const el=$('progressBody'); if(!el||!PROG)return;
       const st=PROG.stats;
+      const cb=st.combat||{matches:0,strikes:0,hits:0,parries:0,blocks:0,counters:0,gbDealt:0,gbTaken:0,reactSum:0,reactN:0};
       let fav='—', favN=-1;
       for(const f in st.formUse){ if(st.formUse[f]>favN){ favN=st.formUse[f]; fav=f; } }
       const modeRow=(label,m)=>'<div><span>'+label+'</span><b>'+st.modes[m].w+'W – '+st.modes[m].l+'L</b></div>';
@@ -10379,6 +10840,14 @@
         +'<div><span>LADDER CLEARS</span><b>'+st.ladderClears+'</b></div>'
         +'<div><span>SURVIVAL BEST</span><b>'+st.survivalBest+' WAVES</b></div>'
         +'<div><span>BOSS RUSH BEST</span><b>'+s5FmtTime(st.bossBestMs)+'</b></div>'
+        +'</div>'
+        +'<div class="setupHead">COMBAT RECORD — LIFETIME</div><div class="ldGrid">'
+        +'<div><span>STRIKE ACCURACY</span><b>'+(cb.strikes?Math.round(100*cb.hits/cb.strikes):0)+'% ('+cb.hits+' / '+cb.strikes+')</b></div>'
+        +'<div><span>PARRIES</span><b>'+cb.parries+'</b></div>'
+        +'<div><span>BLOCKS</span><b>'+cb.blocks+'</b></div>'
+        +'<div><span>COUNTERS</span><b>'+cb.counters+'</b></div>'
+        +'<div><span>GUARD BREAKS</span><b>'+cb.gbDealt+' DEALT / '+cb.gbTaken+' TAKEN</b></div>'
+        +'<div><span>AVG GUARD REACTION</span><b>'+(cb.reactN?Math.round(cb.reactSum/cb.reactN)+'f':'—')+'</b></div>'
         +'</div>'
         +'<div class="setupHead">RECORD BY MODE</div><div class="ldGrid">'
         +modeRow('VS CPU','cpu')+modeRow('ARCADE LADDER','ladder')+modeRow('SURVIVAL (WAVES)','survival')+modeRow('BOSS RUSH','boss')+modeRow('LOCAL VERSUS (P1)','versus')+modeRow('ONLINE','online')
@@ -10515,6 +10984,10 @@
          graded defense resolution, the defense log and the Blade
          Lock pressure contest, for the Stage 2 proof battery */
       ANA_DEF_LOG:ANA_DEF_LOG,sweptBladeInterceptSim:sweptBladeInterceptSim,resolveAnalogDefense:resolveAnalogDefense,isAnaDefender:isAnaDefender,lockPressureAccum:lockPressureAccum,
+      /* STAGE 5 harness surface: the analog CPU's reaction log and
+         blade state, the graded contact FX log + emitter, the impact
+         voice budget, and the finisher-matching log + selectors */
+      IMPACT:IMPACT,SFX:SFX,FX_LOG:FX_LOG,contactFX:contactFX,FIN_LOG:FIN_LOG,finisherKindFor:finisherKindFor,weaponTypeOf:weaponTypeOf,get ANA_AI(){return ai?ai.ana:null;},
       get ANA2(){return {cap:TUNING.ANA2_BLADE_CAP,min:TUNING.ANA2_BLADE_MIN,max:TUNING.ANA2_BLADE_MAX,def:TUNING.ANA2_DEFAULT_ANG,shotoOff:TUNING.ANA2_SHOTO_OFF};},
       /* VADER NOOOO + STICK JUMP harness surface */
       NOOO:NOOO,vaderNoBeat:vaderNoBeat,get VADER_NO_CLIP(){return VADER_NO_CLIP;},get stickJumpArmed(){return stickJumpArmed;},
@@ -10526,7 +10999,36 @@
       /* S2 harness surface: forms, profiles, cast path, lightning */
       FORMS:FORMS,FORM_ORDER:FORM_ORDER,PROFILES:PROFILES,unlockedForms:unlockedForms,effMods:effMods,nextForm:nextForm,castAttempt:castAttempt,resolveBolt:resolveBolt,altNameFor:altNameFor,altCostFor:altCostFor,specCostFor:specCostFor,pullCostFor:pullCostFor,refreshFormPicker:refreshFormPicker,
       setState:setState,startAttack:startAttack,resolveClash:resolveClash,fighterUpdate:fighterUpdate,makeFighter:makeFighter,
-      getHitbox:getHitbox,getHurtbox:getHurtbox,boxesOverlap:boxesOverlap,bladeSegment:bladeSegment,sweptBladeHit:sweptBladeHit,sweptBladeClash:sweptBladeClash,sweptBladeIntercept:sweptBladeIntercept,sweptOn:sweptOn,setSweptCollision:setSweptCollision,get sweptLatched(){return SWEPT_LATCHED;},segBoxDist:segBoxDist,segSegDist:segSegDist,segSegNearest:segSegNearest,bladeContact:bladeContact,meetAngleFor:meetAngleFor,guardTypeForDir:guardTypeForDir,staminaCostOf:staminaCostOf,ATK:ATK};
+      /* STAGE 4 FOOTWORK harness surface */
+      bandOfGap:bandOfGap,rangeBand:rangeBand,topSpeedOf:topSpeedOf,
+      getHitbox:getHitbox,getHurtbox:getHurtbox,boxesOverlap:boxesOverlap,bladeSegment:bladeSegment,sweptBladeHit:sweptBladeHit,sweptBladeClash:sweptBladeClash,sweptBladeIntercept:sweptBladeIntercept,sweptOn:sweptOn,setSweptCollision:setSweptCollision,get sweptLatched(){return SWEPT_LATCHED;},segBoxDist:segBoxDist,segSegDist:segSegDist,segSegNearest:segSegNearest,bladeContact:bladeContact,meetAngleFor:meetAngleFor,guardTypeForDir:guardTypeForDir,staminaCostOf:staminaCostOf,ATK:ATK,
+      /* STAGE 6: releaseAudit() console self-check (after GPT v8's
+         addition, merged here). NON-DESTRUCTIVE by construction: it
+         only reads live state — stateHash is a pure function of the
+         current sim state — it never advances the sim, never sends a
+         packet and never writes a save. */
+      releaseAudit:function(){
+        let hash=null; try{ hash=stateHash(0); }catch(e){ hash='unavailable'; }
+        const cb=(typeof PROG!=='undefined'&&PROG&&PROG.stats)?PROG.stats.combat:null;
+        return { ok:true,
+          fighters:CHAR_IDS.length, movesPerFighter:Object.keys(MOVES.vader||{}).length,
+          settled:{ parryWindowTicks:TUNING.PARRY_WINDOW_TICKS, guardBreakTicks:TUNING.GUARDBREAK_TICKS, chokeSeconds:TUNING.CHOKE_DURATION, reactionTicks:DIFF.map(d=>d.reactTicks) },
+          phase:G?G.phase:null, mode:G?G.mode:null, tick:G?G.tick:null, stateHash:hash,
+          drill:(typeof TR!=='undefined'&&TR)?TR.id:null,
+          online:{ active:!!(typeof G!=='undefined'&&G&&G.online), connected:!!(typeof NET!=='undefined'&&NET&&NET.ws&&NET.ws.readyState===1) },
+          perf:{ fpsEMA:Math.round(fpsEMA*10)/10, qLevel:qLevel, fx:G?G.fx:null, particles:particles.length, floats:floats.length, projectiles:projectiles.length },
+          combatStats:{ shapeOk:!!(cb&&typeof cb.hits==='number'&&typeof cb.gbDealt==='number'&&typeof cb.reactN==='number'), lifetime:cb||null },
+          settingsAudit:{
+            sensitivity:'PRESENT — GUARD SENSITIVITY (classic guard pad / stick tilt) and SABER STICK SENSITIVITY (analog)',
+            deadZone:'PRESENT — SABER STICK DEAD ZONE (analog) and the guard-pad centre dead-zone inside GUARD_SENS',
+            gestureThreshold:'GAP — gesture recognition thresholds are fixed TUNING constants (ANA3_MIN_ARC / ANA3_MIN_PEAK_VEL / ANA3_HEAVY_ARC); no user-facing setting exists',
+            visualization:'PRESENT — HITBOX DEBUG visualizer and BLADE-DIRECTION INDICATOR',
+            shake:'PRESENT — CAMERA SHAKE toggle',
+            effects:'PRESENT — EFFECTS auto/full/eco with the auto quality scaler',
+            handedness:'GAP — no full left-handed layout; the analog stick has X/Y offset steps only (the settings copy states this)'
+          },
+          note:'read-only self-check: no sim advance, no packets sent, no saves written' };
+      }};
     </script>
   </body>
 </html>
