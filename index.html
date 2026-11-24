@@ -546,6 +546,24 @@
       #fightStage.scheme-analog #guardRight .strikeGrid{position:absolute; left:calc(max(10px, env(safe-area-inset-left)) + 6px); bottom:172px; z-index:8;}
       #fightStage.scheme-analog.ctl-s #guardRight .strikeGrid{left:calc(max(10px, env(safe-area-inset-left)) + 10px); bottom:158px;}
       #fightStage.scheme-analog.ctl-l #guardRight .strikeGrid{left:calc(max(10px, env(safe-area-inset-left)) + 8px); bottom:188px;}
+      /* LEFT-HANDED LAYOUT (Batch A setting, default OFF): the touch
+         clusters mirror horizontally — the #controls row reverses so
+         the movement stick sits on the RIGHT and the strike / saber
+         cluster on the LEFT, and each cluster's own row reverses with
+         it, in both control schemes (guard-pad and classic layouts
+         alike). Purely presentational: the elements, their input
+         handlers and every direction semantic are unchanged — a
+         rightward stick push still reads rightward. The Analog
+         strike grid, absolutely seated over the movement stick,
+         re-seats to the right edge to stay above its stick. */
+      #fightStage.lefty #controls{flex-direction:row-reverse;}
+      #fightStage.lefty #guardRight{flex-direction:row-reverse;}
+      #fightStage.lefty .leftCluster{flex-direction:row-reverse;}
+      #fightStage.lefty #classicRight{align-items:flex-start;}
+      #fightStage.lefty #classicRight .cluster{flex-direction:row-reverse;}
+      #fightStage.lefty.scheme-analog #guardRight .strikeGrid{left:auto; right:calc(max(10px, env(safe-area-inset-right)) + 6px);}
+      #fightStage.lefty.scheme-analog.ctl-s #guardRight .strikeGrid{right:calc(max(10px, env(safe-area-inset-right)) + 10px);}
+      #fightStage.lefty.scheme-analog.ctl-l #guardRight .strikeGrid{right:calc(max(10px, env(safe-area-inset-right)) + 8px);}
       /* reduced motion (Settings toggle; the media query below covers the OS preference for the gate) */
       body.rm .mpanel.on{animation:none;}
       body.rm #gateBtn{animation:none;}
@@ -1207,6 +1225,11 @@
                   <span class="sdesc">GUARD PAD: right-thumb directional guard pad + FORCE quick-selector. CLASSIC: the pre-revamp layout &mdash; stick + BLOCK button + three always-on Force buttons, direction via stick tilt. Both preserve full skill expression; nothing auto-parries. Saved with your other settings.</span>
                 </div>
                 <div class="setRow">
+                  <span class="slab">LEFT-HANDED LAYOUT</span>
+                  <button class="togBtn off" id="setLeftHanded">LEFT-HANDED: OFF</button>
+                  <span class="sdesc">OFF: the shipped layout — movement stick left, strike / saber controls right. ON: the touch clusters mirror horizontally — movement stick on the right, strike / saber controls on the left — in both control schemes (guard pad and classic layouts alike). Desktop keys are unchanged. Saved with your other settings.</span>
+                </div>
+                <div class="setRow">
                   <span class="slab">CONTROL SCHEME</span>
                   <button class="togBtn off" id="setScheme">SCHEME: CLASSIC CONTROLS</button>
                   <span class="sdesc">CLASSIC CONTROLS: everything exactly as shipped. ANALOG SABER CONTROLS: a right-thumb saber stick replaces the guard pad &mdash; hold a direction to guard that line (a fresh push into line is a parry attempt, same window), and your blade aim follows the stick while you stand, move or guard. The strike grid (LIGHT / HEAVY / JUMP / DODGE) moves to the LEFT side, above the movement stick, so your left thumb strikes while your right thumb aims &mdash; aim and strike at the same time. LIGHT / HEAVY, JUMP, DODGE and FORCE work exactly as before, and no attack ever fires from the stick itself. On desktop, hold the right mouse button on the duel and move to aim. Saved with your other settings; older saves open on Classic Controls.</span>
@@ -1227,9 +1250,14 @@
                   <span class="sdesc">Thumb travel ignored at the Analog stick&rsquo;s centre, so a resting thumb never drifts your guard.</span>
                 </div>
                 <div class="setRow">
+                  <span class="slab">GESTURE SENSITIVITY</span>
+                  <button class="togBtn" id="setGestureSens">GESTURES: STANDARD</button>
+                  <span class="sdesc">Analog scheme only: how much blade travel and speed a slash gesture needs before it is recognised. STANDARD is exactly the shipped tuning. HIGH recognises shorter, slower sweeps; LOW demands bigger, faster ones. Classic Controls are untouched. Saved with your other settings.</span>
+                </div>
+                <div class="setRow">
                   <span class="slab">SABER STICK POSITION</span>
                   <span><button class="togBtn" id="setAnaOffX">OFFSET X: 0</button> <button class="togBtn" id="setAnaOffY">OFFSET Y: 0</button></span>
-                  <span class="sdesc">Slide the Analog stick from its seat in 20px steps (tap to step, wraps around). A full left-handed mirror layout arrives in a later layout pass; these offsets let you pull the stick toward your left thumb meanwhile.</span>
+                  <span class="sdesc">Slide the Analog stick from its seat in 20px steps (tap to step, wraps around). For a full mirror of every touch cluster, see LEFT-HANDED LAYOUT above.</span>
                 </div>
                 <div class="setRow">
                   <span class="slab">BLADE-DIRECTION INDICATOR</span>
@@ -3015,7 +3043,7 @@
         animSet:{idle:'code-built Makashi guard (procedural figure)',locomotion:'pose-driven (drawn layer)',cast:'raised-hand pose',note:'TEMPORARY code-built figure — GLB swap replaces only the visual'},
         comboChain:['light','light2','light3','heavy'],
         finisher:{id:'makashi_verdict',name:'MAKASHI VERDICT',trigger:{type:'riposte',minFoeHpPct:15,forms:['II','V']},built:true}},
-      sidious:{char:'sidious',moveSpeed:205,reachMul:0.98,moves:null,maxHp:85,maxPosture:80,bodyH:148,hScale:0.96,forceCostMul:0.65,
+      sidious:{char:'sidious',moveSpeed:205,reachMul:0.98,moves:null,maxHp:85,maxPosture:80,bodyH:148,hScale:0.96,forceCostMul:0.4,forceRegen:6,
         signaturePowers:['pull','lightning (signature)','choke'],affinityForm:'VII',
         animSet:{idle:'code-built hooded guard (procedural figure)',locomotion:'pose-driven (drawn layer)',cast:'raised-hand pose',note:'TEMPORARY code-built figure — GLB swap replaces only the visual'},
         comboChain:['light','light2','light3','heavy'],
@@ -4744,10 +4772,13 @@
       caster.stats.specs++;
       SFX.bolt();
       /* SIDIOUS SIGNATURE (sig=true, his SPECIAL slot): stronger
-         than the standard bolt — 16 damage / 22 posture clean,
-         heavier chip — at the cheaper signature cost (25 effective,
-         set in his CHARS row through his −25% Force economy) */
-      const boltDmg=sig?16:12, boltPost=sig?22:18, boltChip=sig?6:4;
+         than the standard bolt — 16 damage / 28 posture clean
+         (40 posture when blocked), heavier chip — at the cheaper
+         signature cost (12 effective, set in his CHARS row through
+         his forceCostMul Force economy; Batch A buffed the posture
+         numbers 22 -> 28 clean / 32 -> 40 blocked to strengthen his
+         Force identity — see proofs-batchA/battery-results.md) */
+      const boltDmg=sig?16:12, boltPost=sig?28:18, boltChip=sig?6:4;
       const y0=caster.y-118, y1=def.y-96;
       for(let i=0;i<22;i++){ const t=i/21; particles.push({x:lerp(caster.x+caster.facing*30,def.x,t),y:lerp(y0,y1,t)+rand(-13,13),vx:rand(-50,50),vy:rand(-50,50),t:0,life:rand(.12,.3),color:i%3?'#c9a7ff':'#9fd8ff',size:rand(1.6,3.4),grav:0,type:'spark'}); }
       ring(def.x,def.y-95,'#c9a7ff',80); shake=Math.max(shake,3);
@@ -4755,7 +4786,7 @@
       if(def.invulnT>0){ addFloat(def.x,def.y-200,'LIGHTNING DODGED!','#bfe6ff',17); return; }
       if(def.blocking && def.state!=='choked'){
         /* blocked by ANY guard direction: chip + heavy posture */
-        const dfm=effMods(def), post=Math.round((sig?32:26)*effMods(caster).postDealtMul*dfm.postTakenMul*postTakenTraitMul(def));
+        const dfm=effMods(def), post=Math.round((sig?40:26)*effMods(caster).postDealtMul*dfm.postTakenMul*postTakenTraitMul(def));
         SFX.blockHit(); sparks(def.x,def.y-95,'#c9a7ff',18,380);
         def.hp=Math.max(0,def.hp-Math.round(boltChip*dfm.chipMul));
         def.posture-=post; def.blockStun=Math.max(def.blockStun,.3); def.stats.blocks++;
@@ -4888,6 +4919,15 @@
       if(f.stamDelayT<=0&&!f.blocking&&(f.state==='idle'||f.state==='walk'||f.state==='crouch')){
         f.stamina=clamp(f.stamina+TUNING.STAMINA_REGEN_PER_SEC*effMods(f).stamRegenMul*dt,0,TUNING.STAMINA_MAX);
       }
+      /* BATCH A — FORCE ATTUNEMENT (Sidious): a per-character passive
+         Force regen carried as a PROFILES field. Only Sidious's
+         profile carries forceRegen — no other profile has the field,
+         so no other fighter's Force economy moves. It follows the
+         FORCE-HEAVY archetype's attunement rule (refills only while
+         the fighter is not busy), so casts still have to be earned
+         through exchanges; it simply means the Emperor's meter
+         refills between them faster than anyone else's. */
+      { const _pr=PROFILES[f.char]; if(_pr&&_pr.forceRegen&&!isBusy(f))f.force=clamp(f.force+_pr.forceRegen*dt,0,100); }
 
       switch(f.state){
         case 'idle': case 'walk': case 'crouch': {
@@ -6006,6 +6046,19 @@
     let renderer3=null, scene3=null, cam3=null;
     let obiWrap=null, obiLean=null, obiBones=null, obiBlade=null, obiHandBone=null, obiMixer=null, obiActs=null, obiCurAct=null;
     let vaderWrap=null, vaderLean=null, vaderBones=null, vaderBlade=null, vaderHandBone=null;
+    /* BATCH A — MIRROR-MATCH FIX: a SECOND rig for each of them, the
+       same pattern Maul and Inaam already use below. A mirror match
+       fields two of the same duelist, and one rig can only be in one
+       place: with a single rig, both fighters' syncs drove the same
+       wrap and only one model ever showed. The C-side fighter drives
+       rig B. Readiness stays all-or-nothing across both rigs, so any
+       load failure falls the character back to the drawn fighter
+       everywhere, exactly like Maul/Inaam. */
+    let obiWrap2=null, obiLean2=null, obiBones2=null, obiBlade2=null, obiHandBone2=null, obiMixer2=null, obiActs2=null, obiCurAct2=null;
+    let vaderWrap2=null, vaderLean2=null, vaderBones2=null, vaderBlade2=null, vaderHandBone2=null;
+    let obiRigA=false, obiRigB=false, vaderRigA=false, vaderRigB=false;
+    function obiFlags(){ T3.obiReady=obiRigA&&obiRigB; }
+    function vaderFlags(){ T3.vaderReady=vaderRigA&&vaderRigB; T3.ready=T3.vaderReady; }
     let maulWrap=null, maulLean=null, maulBones=null, maulHandBone=null, maulStaff=null;
     /* a SECOND Maul rig: a mirror match fields two Mauls, and one rig
        can only be in one place — the C-side Maul drives rig B. Readiness
@@ -6187,13 +6240,31 @@
         }
       }
       if(st==='idle'&&f.bindT>0)ang=f.bindAng; /* clash winner holds the bind pose briefly */
+      /* VADER IDLE STANCE (user screenshot, 2026-11-23): in his plain
+         standing idle — the spawn pose included — Vader stands bolt
+         upright (no STANCE2 lean, no stance crouch, so the cape hangs
+         straight down his back) with the saber arm carried forward
+         and the blade held at -0.55 rad in facing space, ~31 deg
+         above horizontal toward the opponent — the same neutral the
+         swing recovery already eases back to. Presentation only:
+         this lives in poseFor, below every combat pose (blocking,
+         the form-switch flourish, the bind hold, finishers, cast,
+         hitstun and attacks are all excluded above or by the guard
+         here), it writes no sim field, and bladeSegment / stepBlade
+         are untouched — Classic hashes are unchanged, and in Analog
+         stance states the bladeRenderSim override at the end of this
+         function still replaces ang with the authoritative sim angle
+         (ANA2_DEFAULT_ANG -0.5, unchanged) exactly as shipped; only
+         the upright body carries across schemes. */
+      const vaderIdle=(f.char==='vader'&&st==='idle'&&!f.blocking&&!f.blockLow&&f.formT<=0&&!(f.bindT>0)&&!f._fin);
+      if(vaderIdle){ ang=-0.55; lean=0; crouchK=0; }
       /* STAGE 2: idle stance signature (suppressed while guarding —
          the guard pose owns the body then), block recoil (a caught
          swing rocks the guard back in proportion to the blockstun
          it inflicted, easing out as the stun decays) and the dash
          dip (an evasive crouch under the dash lean). */
       const sF=f.facing||1;
-      if(st==='idle'&&!f.blocking){ lean+=ST2.lean; crouchK=Math.max(crouchK,ST2.crouch); }
+      if(st==='idle'&&!f.blocking&&!vaderIdle){ lean+=ST2.lean; crouchK=Math.max(crouchK,ST2.crouch); }
       if(f.blocking&&f.blockStun>0){ const rec=Math.min(f.blockStun,0.3); lean-=rec*0.7; lunge-=rec*0.22; }
       if(st==='dash')crouchK=Math.max(crouchK,0.3);
       if(st==='walk')lean=((f.vx||0)*sF>=0)?0.09:-0.04; /* STAGE 2: advancing leans in; retreating stays upright and cautious */
@@ -6513,8 +6584,12 @@
          startup stays fast enough for phone (and software) WebGL */
       vaderWrap=new THREE.Group(); vaderLean=new THREE.Group(); vaderWrap.add(vaderLean); vaderWrap.visible=false; scene3.add(vaderWrap);
       vaderBlade=makeBladeGroup(0xff2a1e,.95); vaderBlade.visible=false; scene3.add(vaderBlade);
+      vaderWrap2=new THREE.Group(); vaderLean2=new THREE.Group(); vaderWrap2.add(vaderLean2); vaderWrap2.visible=false; scene3.add(vaderWrap2);
+      vaderBlade2=makeBladeGroup(0xff2a1e,.95); vaderBlade2.visible=false; scene3.add(vaderBlade2);
       obiWrap=new THREE.Group(); obiLean=new THREE.Group(); obiWrap.add(obiLean); obiWrap.visible=false; scene3.add(obiWrap);
       obiBlade=makeBladeGroup(0x2e8bff,.98); obiBlade.visible=false; scene3.add(obiBlade);
+      obiWrap2=new THREE.Group(); obiLean2=new THREE.Group(); obiWrap2.add(obiLean2); obiWrap2.visible=false; scene3.add(obiWrap2);
+      obiBlade2=makeBladeGroup(0x2e8bff,.98); obiBlade2.visible=false; scene3.add(obiBlade2);
       maulWrap=new THREE.Group(); maulLean=new THREE.Group(); maulWrap.add(maulLean); maulWrap.visible=false; scene3.add(maulWrap);
       maulWrap2=new THREE.Group(); maulLean2=new THREE.Group(); maulWrap2.add(maulLean2); maulWrap2.visible=false; scene3.add(maulWrap2);
       inaamWrap=new THREE.Group(); inaamLean=new THREE.Group(); inaamWrap.add(inaamLean); inaamWrap.visible=false; scene3.add(inaamWrap);
@@ -6575,38 +6650,65 @@
             obiMixer=new THREE.AnimationMixer(gltf.scene); obiActs={};
             gltf.animations.forEach(c=>{ obiActs[c.name]=obiMixer.clipAction(c); });
           }
-          T3.obiReady=true;
-        }catch(e){ T3.obiReady=false; }
-      },()=>{ T3.obiReady=false; });
+          obiRigA=true; obiFlags();
+        }catch(e){ obiRigA=false; obiFlags(); }
+      },()=>{ obiRigA=false; obiFlags(); });
+      /* mirror-match rig B: a second parse of the same cached bytes,
+         its own mixer — the C-side Obi-Wan in an Obi-Wan mirror */
+      loadGLBShared(GLB_URL.obi,gltf=>{
+        try{
+          const rig=setupRig(gltf,OBI_MAP,1.66);
+          obiLean2.add(rig.mid); obiBones2=rig.bones; obiHandBone2=rig.bones.hand||null;
+          if(gltf.animations&&gltf.animations.length&&THREE.AnimationMixer){
+            obiMixer2=new THREE.AnimationMixer(gltf.scene); obiActs2={};
+            gltf.animations.forEach(c=>{ obiActs2[c.name]=obiMixer2.clipAction(c); });
+          }
+          obiRigB=true; obiFlags();
+        }catch(e){ obiRigB=false; obiFlags(); }
+      },()=>{ obiRigB=false; obiFlags(); });
+      /* MATERIAL LIFT (user screenshot, 2026-11-15): the Fortnite
+         textures are near-black, so under the shared light rig he
+         rendered as a flat silhouette — helmet, chest panel and
+         cape folds unreadable. Lift HIS materials only: diffuse
+         gain >1 (his own texture, brightened), a small emissive
+         floor so shadowed folds never crush to pure black, and a
+         roughness cap so the key light draws specular definition
+         on the helmet and armour. Obi-Wan's materials untouched.
+         Applied per parse, so rig A and mirror rig B lift alike. */
+      function liftVaderMats(rigMid){
+        const seenMats=new Set();
+        rigMid.traverse(o=>{
+          if(!o.isMesh)return;
+          const mats=Array.isArray(o.material)?o.material:[o.material];
+          mats.forEach(mt=>{
+            if(!mt||seenMats.has(mt))return; seenMats.add(mt);
+            if(mt.isMeshStandardMaterial){
+              mt.color.multiplyScalar(1.85);
+              mt.emissive=new THREE.Color(0x11131c);
+              if(typeof mt.roughness==='number'&&mt.roughness>0.55)mt.roughness=0.55;
+              mt.needsUpdate=true;
+            } else if(mt.color&&mt.color.multiplyScalar){ mt.color.multiplyScalar(1.6); }
+          });
+        });
+      }
       loadGLBShared(GLB_URL.vader,gltf=>{
         try{
           const rig=setupRig(gltf,VADER_MAP,1.78);
-          /* MATERIAL LIFT (user screenshot, 2026-11-15): the Fortnite
-             textures are near-black, so under the shared light rig he
-             rendered as a flat silhouette — helmet, chest panel and
-             cape folds unreadable. Lift HIS materials only: diffuse
-             gain >1 (his own texture, brightened), a small emissive
-             floor so shadowed folds never crush to pure black, and a
-             roughness cap so the key light draws specular definition
-             on the helmet and armour. Obi-Wan's materials untouched. */
-          const seenMats=new Set();
-          rig.mid.traverse(o=>{
-            if(!o.isMesh)return;
-            const mats=Array.isArray(o.material)?o.material:[o.material];
-            mats.forEach(mt=>{
-              if(!mt||seenMats.has(mt))return; seenMats.add(mt);
-              if(mt.isMeshStandardMaterial){
-                mt.color.multiplyScalar(1.85);
-                mt.emissive=new THREE.Color(0x11131c);
-                if(typeof mt.roughness==='number'&&mt.roughness>0.55)mt.roughness=0.55;
-                mt.needsUpdate=true;
-              } else if(mt.color&&mt.color.multiplyScalar){ mt.color.multiplyScalar(1.6); }
-            });
-          });
+          liftVaderMats(rig.mid);
           vaderLean.add(rig.mid); vaderBones=rig.bones; vaderHandBone=rig.bones.hand||null;
-          T3.vaderReady=true; T3.ready=true;
-        }catch(e){ T3.vaderReady=false; }
-      },()=>{ T3.vaderReady=false; });
+          vaderRigA=true; vaderFlags();
+        }catch(e){ vaderRigA=false; vaderFlags(); }
+      },()=>{ vaderRigA=false; vaderFlags(); });
+      /* mirror-match rig B: a second parse of the same cached bytes —
+         the C-side Vader in a Vader mirror */
+      loadGLBShared(GLB_URL.vader,gltf=>{
+        try{
+          const rig=setupRig(gltf,VADER_MAP,1.78);
+          liftVaderMats(rig.mid);
+          vaderLean2.add(rig.mid); vaderBones2=rig.bones; vaderHandBone2=rig.bones.hand||null;
+          vaderRigB=true; vaderFlags();
+        }catch(e){ vaderRigB=false; vaderFlags(); }
+      },()=>{ vaderRigB=false; vaderFlags(); });
       loadGLBShared(GLB_URL.maul,gltf=>{
         try{
           const rig=buildMaulRig(gltf,1.70);
@@ -6722,7 +6824,23 @@
       /* grip pass: clamp stops at ±2.05 rad — past that the arm rotates
          fully up behind the head and the blade reads as growing out of
          the skull instead of being gripped above it */
-      const shW=s*clamp((-pose.ang+1.15)*0.85,-2.05,2.05);
+      let shW=s*clamp((-pose.ang+1.15)*0.85,-2.05,2.05);
+      let rElW=s*(0.4+Math.max(0,-pose.ang)*0.12);
+      /* VADER IDLE STANCE (user screenshot, 2026-11-23): in his plain
+         standing idle the saber arm is EXTENDED FORWARD at shoulder
+         height — shoulder driven past the generic carry weight and
+         the elbow nearly straight — so the fist sits out in front of
+         the chest with the blade running up-forward from it, matching
+         poseFor's Vader idle angle. Same exclusions as poseFor (no
+         guard, flourish, bind, finisher, low block or menu duel), and
+         skipped whenever the sim blade is being rendered directly
+         (Analog / online stance states), where the shipped
+         angle-driven arm keeps following the aimed blade. The wrist
+         grip-alignment pass and the fist socket below run after this
+         and re-seat the hilt on the posed fist, so the measured
+         VADER_FIST_OFF seating survives unchanged. */
+      const vaderIdleRig=(f.char==='vader'&&f.state==='idle'&&!f.blocking&&!f.blockLow&&!(f.formT>0)&&!(f.bindT>0)&&!f._fin&&!f._duel&&!bladeRenderSim(f));
+      if(vaderIdleRig){ shW=s*1.62; rElW=s*0.15; }
       let lShW=s*-0.25, lElW=s*0.2;
       if(f.state==='cast'||f._choking){ lShW=s*1.35; lElW=s*0.1; }
       /* STAGE 2 (animation programme) — locomotion envelope, swing
@@ -6767,7 +6885,7 @@
         poseBoneZ(B.sp1,-s*twist*0.45); poseBoneZ(B.sp2,-s*twist*0.8); poseBoneZ(B.head,s*twist*0.35);
         poseBoneZ(B.rHip,s*twist*0.3); poseBoneZ(B.lHip,-s*twist*0.3); }
       poseBoneZ(B.lSh,lShW); poseBoneZ(B.lEl,lElW);
-      poseBoneZ(B.rSh,shW); poseBoneZ(B.rEl,s*(0.4+Math.max(0,-pose.ang)*0.12));
+      poseBoneZ(B.rSh,shW); poseBoneZ(B.rEl,rElW);
       /* VADER GRIP: curl his right DEF finger bones into a closed fist
          around the hilt in every saber-holding state (his rest hand is
          a flat open glove — measured above). Fingers flex about local
@@ -6814,19 +6932,26 @@
        attacks, blocks or is hit, the pose system takes the skeleton
        (return value tells sync whether the mixer already posed him). */
     let obiClipFade=0;
-    function obiClipPose(f,t,dt){
-      if(!obiMixer||!obiActs)return false;
+    let obiClipFade2=0;
+    /* rig B (mirror match) runs the same clip logic against its own
+       mixer / action set / fade state — the B parameters default to
+       rig A, so every existing caller behaves exactly as before */
+    function obiClipPose(f,t,dt,B){
+      const MX=B?obiMixer2:obiMixer, AC=B?obiActs2:obiActs;
+      if(!MX||!AC)return false;
+      let cur=B?obiCurAct2:obiCurAct, fade=B?obiClipFade2:obiClipFade;
       let name=null;
       const st=f.state;
       if(f._duel||st==='idle'||f.blocking)name='Great Sword Idle';
       else if(st==='walk'){ const back=(f.vx||0)*f.facing<0; name=back?'Left Strafe Walking':'Walking'; }
       else if(st==='dash')name='Running';
       else if(st==='hitstun_air'||st==='knockdown')name='Falling Idle';
-      if(!name){ obiClipFade=Math.max(0,obiClipFade-dt*7); if(obiCurAct&&obiClipFade<=0){ obiCurAct.stop(); obiCurAct=null; } if(obiClipFade>0)obiMixer.update(dt); return obiClipFade>0; }
-      const act=obiActs[name]; if(!act)return false;
-      if(obiCurAct!==act){ if(obiCurAct)obiCurAct.fadeOut(0.14); act.reset().fadeIn(0.14).play(); obiCurAct=act; }
-      obiClipFade=1;
-      obiMixer.update(dt);
+      if(!name){ fade=Math.max(0,fade-dt*7); if(cur&&fade<=0){ cur.stop(); cur=null; } if(fade>0)MX.update(dt); if(B){ obiCurAct2=cur; obiClipFade2=fade; } else { obiCurAct=cur; obiClipFade=fade; } return fade>0; }
+      const act=AC[name]; if(!act)return false;
+      if(cur!==act){ if(cur)cur.fadeOut(0.14); act.reset().fadeIn(0.14).play(); cur=act; }
+      fade=1;
+      MX.update(dt);
+      if(B){ obiCurAct2=cur; obiClipFade2=fade; } else { obiCurAct=cur; obiClipFade=fade; }
       return true;
     }
     const menuFakeV=(()=>{ const f=makeFighter('vader',320,true); f.state='idle'; f._duel=true; return f; })();
@@ -6875,12 +7000,17 @@
       /* mirror match: the C-side Maul drives rig B (see maulWrap2) */
       const maulB=isMaul&&typeof P!=='undefined'&&typeof C!=='undefined'&&P&&C&&P.char==='maul'&&C.char==='maul'&&f===C;
       const maulStaffSel=isMaul?(maulB?maulStaff2:maulStaff):null;
-      const wrap=isObi?obiWrap:(isMaul?(maulB?maulWrap2:maulWrap):(isInaam?(inaamB?inaamWrap2:inaamWrap):vaderWrap)), lean=isObi?obiLean:(isMaul?(maulB?maulLean2:maulLean):(isInaam?(inaamB?inaamLean2:inaamLean):vaderLean));
+      /* mirror match: the C-side Obi-Wan / Vader drive rig B (Batch A) */
+      const obiB=isObi&&typeof P!=='undefined'&&typeof C!=='undefined'&&P&&C&&P.char==='obi'&&C.char==='obi'&&f===C;
+      const vaderB=!isObi&&!isMaul&&!isInaam&&typeof P!=='undefined'&&typeof C!=='undefined'&&P&&C&&P.char==='vader'&&C.char==='vader'&&f===C;
+      const obiBladeSel=isObi?(obiB?obiBlade2:obiBlade):null;
+      const vaderBladeSel=(!isObi&&!isMaul&&!isInaam)?(vaderB?vaderBlade2:vaderBlade):null;
+      const wrap=isObi?(obiB?obiWrap2:obiWrap):(isMaul?(maulB?maulWrap2:maulWrap):(isInaam?(inaamB?inaamWrap2:inaamWrap):(vaderB?vaderWrap2:vaderWrap))), lean=isObi?(obiB?obiLean2:obiLean):(isMaul?(maulB?maulLean2:maulLean):(isInaam?(inaamB?inaamLean2:inaamLean):(vaderB?vaderLean2:vaderLean)));
       if(!wrap)return;
-      if(isObi&&!T3.obiReady){ wrap.visible=false; if(obiBlade)obiBlade.visible=false; return; }
+      if(isObi&&!T3.obiReady){ wrap.visible=false; if(obiBladeSel)obiBladeSel.visible=false; return; }
       if(isMaul&&!(T3.maulReady&&T3.maulSaberReady)){ wrap.visible=false; if(maulStaffSel)maulStaffSel.visible=false; return; }
       if(isInaam&&!T3.inaamReady){ wrap.visible=false; if(inaamBladeSel)inaamBladeSel.visible=false; return; }
-      if(!isObi&&!isMaul&&!isInaam&&!T3.vaderReady){ wrap.visible=false; if(vaderBlade)vaderBlade.visible=false; return; }
+      if(!isObi&&!isMaul&&!isInaam&&!T3.vaderReady){ wrap.visible=false; if(vaderBladeSel)vaderBladeSel.visible=false; return; }
       wrap.visible=true;
       const dtF=clamp(t-lastSyncT,0,0.05);
       const lungeX=s*pose.lunge;
@@ -6905,9 +7035,9 @@
       else { lean.rotation.z=-pose.lean+pose.fall*1.25; lean.rotation.x=0; }
       lean.position.y=-pose.crouchK*0.15;
       if(f.state==='choked'){ lean.position.x=Math.sin(t*46)*0.012; } else lean.position.x=0;
-      const bones=isObi?obiBones:(isMaul?(maulB?maulBones2:maulBones):(isInaam?(inaamB?inaamBones2:inaamBones):vaderBones)), handBone=isObi?obiHandBone:(isMaul?(maulB?maulHandBone2:maulHandBone):(isInaam?(inaamB?inaamHandBone2:inaamHandBone):vaderHandBone)), bladeG=isObi?obiBlade:(isMaul?maulStaffSel:(isInaam?inaamBladeSel:vaderBlade));
+      const bones=isObi?(obiB?obiBones2:obiBones):(isMaul?(maulB?maulBones2:maulBones):(isInaam?(inaamB?inaamBones2:inaamBones):(vaderB?vaderBones2:vaderBones))), handBone=isObi?(obiB?obiHandBone2:obiHandBone):(isMaul?(maulB?maulHandBone2:maulHandBone):(isInaam?(inaamB?inaamHandBone2:inaamHandBone):(vaderB?vaderHandBone2:vaderHandBone))), bladeG=isObi?obiBladeSel:(isMaul?maulStaffSel:(isInaam?inaamBladeSel:vaderBladeSel));
       let clipPosed=false;
-      if(isObi)clipPosed=obiClipPose(f,t,dtF||1/60);
+      if(isObi)clipPosed=obiClipPose(f,t,dtF||1/60,obiB);
       if(!clipPosed)poseRig(bones,f,t,pose);
       /* SABER SOCKET: the hilt origin sits on the model's own right-hand
          deform bone (Obi-Wan mixamorig:RightHand, Vader DEF-hand.R),
@@ -6980,21 +7110,23 @@
            fighters zoom / pan in perfect sync with the drawn world */
         if(cam3){ const hw=(VW/CAM.z)/200, hh=(VH/CAM.z)/200, cxw=(CAM.x-480)/100, cyw=(270-CAM.y)/100;
           cam3.left=cxw-hw; cam3.right=cxw+hw; cam3.top=cyw+hh; cam3.bottom=cyw-hh; cam3.updateProjectionMatrix(); }
-        if(G.mode==='menu'){ if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; if(vaderBlade)vaderBlade.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
+        if(G.mode==='menu'){ if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; if(vaderBlade)vaderBlade.visible=false; if(vaderWrap2)vaderWrap2.visible=false; if(vaderBlade2)vaderBlade2.visible=false; if(obiWrap2)obiWrap2.visible=false; if(obiBlade2)obiBlade2.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
         else if(P&&C){
           /* ROSTER: only the GLB duelists drive rigs — a
              code-built fighter in a slot must never pose (or steal)
              another rig; an unclaimed rig hides outright */
           if(P.char==='vader'||P.char==='obi'||P.char==='maul'||P.char==='inaam')syncFighter3D(P,t);
           if(C.char==='vader'||C.char==='obi'||C.char==='maul'||C.char==='inaam')syncFighter3D(C,t);
-          if(P.char!=='vader'&&C.char!=='vader'){ if(vaderWrap)vaderWrap.visible=false; if(vaderBlade)vaderBlade.visible=false; }
-          if(P.char!=='obi'&&C.char!=='obi'){ if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; }
+          if(P.char!=='vader'&&C.char!=='vader'){ if(vaderWrap)vaderWrap.visible=false; if(vaderBlade)vaderBlade.visible=false; if(vaderWrap2)vaderWrap2.visible=false; if(vaderBlade2)vaderBlade2.visible=false; }
+          if(!(P.char==='vader'&&C.char==='vader')){ if(vaderWrap2)vaderWrap2.visible=false; if(vaderBlade2)vaderBlade2.visible=false; }
+          if(P.char!=='obi'&&C.char!=='obi'){ if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; if(obiWrap2)obiWrap2.visible=false; if(obiBlade2)obiBlade2.visible=false; }
+          if(!(P.char==='obi'&&C.char==='obi')){ if(obiWrap2)obiWrap2.visible=false; if(obiBlade2)obiBlade2.visible=false; }
           if(P.char!=='maul'&&C.char!=='maul'){ if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; }
           if(!(P.char==='maul'&&C.char==='maul')){ if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; }
           if(P.char!=='inaam'&&C.char!=='inaam'){ if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
           if(!(P.char==='inaam'&&C.char==='inaam')){ if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
         }
-        else { if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; if(vaderBlade)vaderBlade.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
+        else { if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(obiBlade)obiBlade.visible=false; if(vaderBlade)vaderBlade.visible=false; if(vaderWrap2)vaderWrap2.visible=false; if(vaderBlade2)vaderBlade2.visible=false; if(obiWrap2)obiWrap2.visible=false; if(obiBlade2)obiBlade2.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; }
         /* thrown saber: the GLB model, spinning */
         if(saberThrow){
           const pr=projectiles.length?projectiles[0]:null;
@@ -7021,7 +7153,7 @@
            (invisible) so nothing else changes. */
         if(saberProp)saberProp.visible=false;
         renderer3.render(scene3,cam3);
-      }catch(e){ T3.ok=false; maulSaber3DReady=false; if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(vaderBlade)vaderBlade.visible=false; if(obiBlade)obiBlade.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; for(const ent of maulStaffThrows)ent.grp.visible=false; }
+      }catch(e){ T3.ok=false; maulSaber3DReady=false; if(vaderWrap)vaderWrap.visible=false; if(obiWrap)obiWrap.visible=false; if(vaderBlade)vaderBlade.visible=false; if(obiBlade)obiBlade.visible=false; if(vaderWrap2)vaderWrap2.visible=false; if(vaderBlade2)vaderBlade2.visible=false; if(obiWrap2)obiWrap2.visible=false; if(obiBlade2)obiBlade2.visible=false; if(maulWrap)maulWrap.visible=false; if(maulStaff)maulStaff.visible=false; if(maulWrap2)maulWrap2.visible=false; if(maulStaff2)maulStaff2.visible=false; if(inaamWrap)inaamWrap.visible=false; if(inaamBlade)inaamBlade.visible=false; if(inaamWrap2)inaamWrap2.visible=false; if(inaamBlade2)inaamBlade2.visible=false; for(const ent of maulStaffThrows)ent.grp.visible=false; }
     }
 
     /* ================= CAMERA =================
@@ -7496,7 +7628,8 @@
         handX=22; handY=hipY+sp.handY; trail=swingP>=1?(recP<0.6?1-recP:0):swingP;
       }
       else if(st==='idle'){ /* STAGE 2: per-fighter idle signatures on the drawn layer — Dooku's low fencing guard, Ahsoka's raised ready angle, Sidious's low menace, Maul's prowl */
-        if(ch==='dooku'){ ang=-0.2; handX=18; handY=hipY-10; } /* Makashi: blade low and level, point forward — in this layer's convention a MORE negative angle raises the blade, so the low guard sits near level */
+        if(ch==='vader'){ ang=-0.55; handX=24; handY=hipY-24; } /* VADER IDLE STANCE (user screenshot, 2026-11-23): arm extended forward at shoulder height, blade ~31 deg above horizontal toward the opponent — the drawn-layer twin of poseFor's Vader idle; torso and cape on this layer already stand/hang straight in idle */
+        else if(ch==='dooku'){ ang=-0.2; handX=18; handY=hipY-10; } /* Makashi: blade low and level, point forward — in this layer's convention a MORE negative angle raises the blade, so the low guard sits near level */
         else if(ch==='ahsoka'){ ang=-0.62; handY=hipY-18; }
         else if(ch==='sidious'){ ang=-0.3; handY=hipY-12; }
         else if(ch==='maul'){ ang=-0.55; handY=hipY-14; }
@@ -8256,7 +8389,7 @@
     }
 
     /* ================= GAME FLOW ================= */
-    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'duel',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,cumP:null,cumC:null,online:false,localSlot:'P',pChar:'vader',cChar:'obi',oppChar:'obi',seed:0,forfeitWin:false,startForms:{vader:'V',obi:'III',maul:'VII',ahsoka:'V',dooku:'II',sidious:'VII',inaam:'V'},finishers:true,cineIntros:true,introDur:1.35,bladeLock:true,gore:true,scheme:'classic',sweptCollision:true};
+    const G={mode:'menu',phase:'idle',time:0,tick:0,round:1,timer:99,winsP:0,winsC:0,diff:1,playerChar:'vader',arena:'duel',fx:'auto',layout:'guard',announceT:0,roundEndT:0,winner:null,debugHitboxes:false,paused:false,shake:true,ctlSize:'m',guardSens:'med',gestureSens:'standard',leftHanded:false,cbSymbols:false,reducedMotion:false,cumP:null,cumC:null,online:false,localSlot:'P',pChar:'vader',cChar:'obi',oppChar:'obi',seed:0,forfeitWin:false,startForms:{vader:'V',obi:'III',maul:'VII',ahsoka:'V',dooku:'II',sidious:'VII',inaam:'V'},finishers:true,cineIntros:true,introDur:1.35,bladeLock:true,gore:true,scheme:'classic',sweptCollision:true};
     /* ================= SETTINGS SAVE (versioned, Stage 3) =================
        One versioned settings object. v1 (pre-Stage-3 saves, if any)
        had no layout field — migration fills new fields from defaults
@@ -8264,7 +8397,7 @@
        mode) degrades to session-only settings, never an error. */
     const SAVE_KEY='galactic-fueled-duelists.settings';
     const SAVE_VERSION=2;
-    let SAVE={v:SAVE_VERSION,muted:false,fx:'auto',diff:1,layout:'guard',debugHitboxes:false,volume:1,shake:true,ctlSize:'m',guardSens:'med',cbSymbols:false,reducedMotion:false,arch:'auto',adaptive:false,finishers:true,cine:true,bladeLock:true,gore:true,sweptCollision:true,p2Touch:false,scheme:'classic',anaSize:'m',anaSens:1,anaDead:0.18,anaOffX:0,anaOffY:0,anaInd:true,sabers:{vader:{hilt:'standard',color:'red'},obi:{hilt:'standard',color:'blue'},maul:{hilt:'standard',color:'red'},ahsoka:{hilt:'standard',color:'white'},dooku:{hilt:'curved',color:'red'},sidious:{hilt:'standard',color:'red'},inaam:{hilt:'standard',color:'orange'}}};
+    let SAVE={v:SAVE_VERSION,muted:false,fx:'auto',diff:1,layout:'guard',debugHitboxes:false,volume:1,shake:true,ctlSize:'m',guardSens:'med',gestureSens:'standard',leftHanded:false,cbSymbols:false,reducedMotion:false,arch:'auto',adaptive:false,finishers:true,cine:true,bladeLock:true,gore:true,sweptCollision:true,p2Touch:false,scheme:'classic',anaSize:'m',anaSens:1,anaDead:0.18,anaOffX:0,anaOffY:0,anaInd:true,sabers:{vader:{hilt:'standard',color:'red'},obi:{hilt:'standard',color:'blue'},maul:{hilt:'standard',color:'red'},ahsoka:{hilt:'standard',color:'white'},dooku:{hilt:'curved',color:'red'},sidious:{hilt:'standard',color:'red'},inaam:{hilt:'standard',color:'orange'}}};
     function loadSave(){
       try{
         const raw=window.localStorage.getItem(SAVE_KEY); if(!raw)return;
@@ -8280,6 +8413,12 @@
         SAVE.shake=SAVE.shake!==false;
         if(!['s','m','l'].includes(SAVE.ctlSize))SAVE.ctlSize='m';
         if(!['low','med','high'].includes(SAVE.guardSens))SAVE.guardSens='med';
+        /* BATCH A fields migrate in with defaults — default-fill ONLY:
+           a save from before these settings loads with Standard
+           gesture sensitivity and the shipped (right-handed) layout,
+           every value it already holds preserved */
+        if(!['low','standard','high'].includes(SAVE.gestureSens))SAVE.gestureSens='standard';
+        SAVE.leftHanded=!!SAVE.leftHanded;
         SAVE.cbSymbols=!!SAVE.cbSymbols; SAVE.reducedMotion=!!SAVE.reducedMotion;
         if(!['auto','aggro','counter','force','random'].includes(SAVE.arch))SAVE.arch='auto';
         SAVE.adaptive=!!SAVE.adaptive;
@@ -8312,7 +8451,7 @@
     function persistSave(){
       if(!saveReady)return;
       try{
-        SAVE.v=SAVE_VERSION; SAVE.muted=muted; SAVE.fx=G.fx; SAVE.diff=G.diff; SAVE.layout=G.layout; SAVE.debugHitboxes=G.debugHitboxes; SAVE.volume=masterVol; SAVE.shake=G.shake; SAVE.ctlSize=G.ctlSize; SAVE.guardSens=G.guardSens; SAVE.cbSymbols=G.cbSymbols; SAVE.reducedMotion=G.reducedMotion; SAVE.arch=aiArchSel; SAVE.adaptive=ADAPT.on; SAVE.finishers=G.finishers; SAVE.cine=G.cineIntros; SAVE.bladeLock=G.bladeLock; SAVE.gore=G.gore; SAVE.sweptCollision=G.sweptCollision!==false; SAVE.scheme=G.scheme||'classic'; if(typeof ANA!=='undefined'){ SAVE.anaSize=ANA.size; SAVE.anaSens=ANA.sens; SAVE.anaDead=ANA.dead; SAVE.anaOffX=ANA.offX; SAVE.anaOffY=ANA.offY; SAVE.anaInd=ANA.ind; } SAVE.sabers=JSON.parse(JSON.stringify(SABER_CFG));
+        SAVE.v=SAVE_VERSION; SAVE.muted=muted; SAVE.fx=G.fx; SAVE.diff=G.diff; SAVE.layout=G.layout; SAVE.debugHitboxes=G.debugHitboxes; SAVE.volume=masterVol; SAVE.shake=G.shake; SAVE.ctlSize=G.ctlSize; SAVE.guardSens=G.guardSens; SAVE.gestureSens=G.gestureSens; SAVE.leftHanded=!!G.leftHanded; SAVE.cbSymbols=G.cbSymbols; SAVE.reducedMotion=G.reducedMotion; SAVE.arch=aiArchSel; SAVE.adaptive=ADAPT.on; SAVE.finishers=G.finishers; SAVE.cine=G.cineIntros; SAVE.bladeLock=G.bladeLock; SAVE.gore=G.gore; SAVE.sweptCollision=G.sweptCollision!==false; SAVE.scheme=G.scheme||'classic'; if(typeof ANA!=='undefined'){ SAVE.anaSize=ANA.size; SAVE.anaSens=ANA.sens; SAVE.anaDead=ANA.dead; SAVE.anaOffX=ANA.offX; SAVE.anaOffY=ANA.offY; SAVE.anaInd=ANA.ind; } SAVE.sabers=JSON.parse(JSON.stringify(SABER_CFG));
         window.localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE));
       }catch(e){ /* storage blocked — session-only */ }
       persistLastSetup();
@@ -8777,8 +8916,12 @@
       if(typeof T3!=='undefined'&&T3.ok&&typeof scene3!=='undefined'&&scene3){
         if(vaderBlade){ scene3.remove(vaderBlade); }
         vaderBlade=makeBladeGroup(parseInt((BLADE_COLORS[cfgs.vader.color]||'#ff2a1e').slice(1),16),.95,cfgs.vader.hilt); vaderBlade.visible=false; scene3.add(vaderBlade);
+        if(vaderBlade2){ scene3.remove(vaderBlade2); }
+        vaderBlade2=makeBladeGroup(parseInt((BLADE_COLORS[cfgs.vader.color]||'#ff2a1e').slice(1),16),.95,cfgs.vader.hilt); vaderBlade2.visible=false; scene3.add(vaderBlade2);
         if(obiBlade){ scene3.remove(obiBlade); }
         obiBlade=makeBladeGroup(parseInt((BLADE_COLORS[cfgs.obi.color]||'#2e8bff').slice(1),16),.98,cfgs.obi.hilt); obiBlade.visible=false; scene3.add(obiBlade);
+        if(obiBlade2){ scene3.remove(obiBlade2); }
+        obiBlade2=makeBladeGroup(parseInt((BLADE_COLORS[cfgs.obi.color]||'#2e8bff').slice(1),16),.98,cfgs.obi.hilt); obiBlade2.visible=false; scene3.add(obiBlade2);
         if(inaamBlade){ scene3.remove(inaamBlade); }
         inaamBlade=makeBladeGroup(parseInt((BLADE_COLORS[cfgs.inaam.color]||'#ff8a2a').slice(1),16),.96,cfgs.inaam.hilt); inaamBlade.visible=false; scene3.add(inaamBlade);
         if(inaamBlade2){ scene3.remove(inaamBlade2); }
@@ -9090,6 +9233,8 @@
       for(const f of [P,C]){ if(f){ f._goreSever=false; f._goreBlade=null; f._goreHandDone=false; } }
       if(typeof vaderHandBone!=='undefined'&&vaderHandBone)vaderHandBone.scale.setScalar(1);
       if(typeof obiHandBone!=='undefined'&&obiHandBone)obiHandBone.scale.setScalar(1);
+      if(typeof vaderHandBone2!=='undefined'&&vaderHandBone2)vaderHandBone2.scale.setScalar(1);
+      if(typeof obiHandBone2!=='undefined'&&obiHandBone2)obiHandBone2.scale.setScalar(1);
       if(typeof maulHandBone!=='undefined'){ if(maulHandBone)maulHandBone.visible=true; if(maulHandBone2)maulHandBone2.visible=true; }
       if(typeof inaamHandBone!=='undefined'){ if(inaamHandBone)inaamHandBone.visible=true; if(inaamHandBone2)inaamHandBone2.visible=true; }
     }
@@ -9717,6 +9862,47 @@
     }
     const gsBtn=$('setGuardSens');
     if(gsBtn)gsBtn.addEventListener('click',()=>{ audioInit(); setGuardSens(G.guardSens==='low'?'med':G.guardSens==='med'?'high':'low'); });
+    /* ================= BATCH A SETTINGS =================
+       GESTURE SENSITIVITY + LEFT-HANDED LAYOUT — the two gaps the
+       Stage 6 settings audit recorded. Both persist through the
+       versioned save's default-fill migration above: older saves
+       gain the keys at Standard / OFF, nothing they hold is wiped. */
+    /* GESTURE SENSITIVITY scales the ANA3 slash-recognition gates —
+       the window arc, the peak angular velocity and the heavy arc —
+       around the shipped constants, captured here before any scaling.
+       STANDARD (multiplier 1) restores the shipped values exactly;
+       HIGH lowers the gates so shorter, slower sweeps register; LOW
+       raises them. Only the travel/speed gates scale: the consistency
+       ratio, the jab gates and the commit / refractory windows are
+       not travel thresholds and stay shipped. Analog gesture
+       recognition only — Classic Controls never read these numbers. */
+    const ANA3_GATE_BASE={arc:TUNING.ANA3_MIN_ARC,vel:TUNING.ANA3_MIN_PEAK_VEL,heavy:TUNING.ANA3_HEAVY_ARC};
+    const ANA3_GATE_MUL={low:1.3,standard:1,high:0.75};
+    function applyGestureSens(){
+      const m=ANA3_GATE_MUL[G.gestureSens]||1;
+      TUNING.ANA3_MIN_ARC=ANA3_GATE_BASE.arc*m;
+      TUNING.ANA3_MIN_PEAK_VEL=ANA3_GATE_BASE.vel*m;
+      TUNING.ANA3_HEAVY_ARC=ANA3_GATE_BASE.heavy*m;
+    }
+    function setGestureSens(v){
+      G.gestureSens=['low','standard','high'].includes(v)?v:'standard';
+      applyGestureSens();
+      const b=$('setGestureSens'); if(b)b.textContent='GESTURES: '+G.gestureSens.toUpperCase();
+      persistSave();
+    }
+    const gestureSensBtn=$('setGestureSens');
+    if(gestureSensBtn)gestureSensBtn.addEventListener('click',()=>{ audioInit(); setGestureSens(G.gestureSens==='low'?'standard':G.gestureSens==='standard'?'high':'low'); });
+    /* LEFT-HANDED LAYOUT: one class on the fight stage; the CSS
+       mirror rules do the rest. Presentation only — no input
+       handler, direction semantic or desktop key changes. */
+    function setLeftHanded(v){
+      G.leftHanded=!!v;
+      const fs=$('fightStage'); if(fs)fs.classList.toggle('lefty',G.leftHanded);
+      const b=$('setLeftHanded'); if(b){ b.textContent='LEFT-HANDED: '+(G.leftHanded?'ON':'OFF'); b.classList.toggle('off',!G.leftHanded); }
+      persistSave();
+    }
+    const leftHandedBtn=$('setLeftHanded');
+    if(leftHandedBtn)leftHandedBtn.addEventListener('click',()=>{ audioInit(); setLeftHanded(!G.leftHanded); });
     /* ================= ANALOG SABER CONTROLS — STAGE A SETTINGS =================
        The scheme is a settings-level switch: Classic Controls (default)
        leave every control exactly as shipped; Analog Saber Controls
@@ -9830,6 +10016,8 @@
     try{ applySavedSabers(); setFinishers(SAVE.finishers); setCine(SAVE.cine); setBladeLock(SAVE.bladeLock); setGore(SAVE.gore); }catch(e){}
     /* STAGE 1 PASS boot apply: swept-collision flag (own isolated group, same pattern) */
     try{ setSweptCollision(SAVE.sweptCollision); }catch(e){}
+    /* BATCH A boot apply: gesture sensitivity + left-handed layout (own isolated group, same pattern) */
+    try{ setGestureSens(SAVE.gestureSens); setLeftHanded(SAVE.leftHanded); }catch(e){}
     /* MENU CLEANUP boot: restore the last-used duel setup (new key;
        the settings save above was already applied and is untouched).
        The restore runs BEFORE saveReady flips: its setters' persists are
@@ -10863,7 +11051,7 @@
     s5InitProg();
     panelHints.panelLadder='Arcade Ladder — seven rungs, rising difficulty. Win to climb; a loss ends the run.';
     panelHints.panelSurvival='Survival — endless single-round waves. You carry +35 HP into each next wave.';
-    panelHints.panelBoss='Boss Rush — three Master-tuned bosses on one wall-clock timer. Best clear time is saved.';
+    panelHints.panelBoss='Boss Rush — four Master-tuned bosses on one wall-clock timer. Best clear time is saved.';
     panelHints.panelLocal='Local Versus — two players, one device. P2 plays on the arrow keys and the , . / cluster.';
     panelHints.panelProgress='Progress — unlock gates, tracked stats and your personal online rating.';
     const _s5ShowPanel=showPanel;
@@ -10918,7 +11106,7 @@
       TUNING:TUNING,MOVES:MOVES,DIFF:DIFF,padState:padState,forceUI:forceUI,btnState:btnState,keys:keys,
       startMatch:startMatch,startTraining:startTraining,exitTraining:exitTraining,tickSim:tickSim,
       playerCtl:playerCtl,setLayout:setLayout,setDiff:setDiff,clearAllInputs:clearAllInputs,persistSave:persistSave,loadSave:loadSave,
-      setVolume:setVolume,setShake:setShake,setCtlSize:setCtlSize,setGuardSens:setGuardSens,setCB:setCB,setRM:setRM,setFx:setFx,setArena:setArena,selectChar:selectChar,toMenu:toMenu,showCallout:showCallout,koRound:koRound,timeOut:timeOut,freshStats:freshStats,get masterVol(){return masterVol;},
+      setVolume:setVolume,setShake:setShake,setCtlSize:setCtlSize,setGuardSens:setGuardSens,setGestureSens:setGestureSens,setLeftHanded:setLeftHanded,setCB:setCB,setRM:setRM,setFx:setFx,setArena:setArena,selectChar:selectChar,toMenu:toMenu,showCallout:showCallout,koRound:koRound,timeOut:timeOut,freshStats:freshStats,get masterVol(){return masterVol;},
       /* STAGE 5 harness getters: pose sampler (saber-animation
          continuity checks), 3D-ownership (fallback checks) and live
          effect/quality counters (performance + leak checks) */
@@ -11021,11 +11209,11 @@
           settingsAudit:{
             sensitivity:'PRESENT — GUARD SENSITIVITY (classic guard pad / stick tilt) and SABER STICK SENSITIVITY (analog)',
             deadZone:'PRESENT — SABER STICK DEAD ZONE (analog) and the guard-pad centre dead-zone inside GUARD_SENS',
-            gestureThreshold:'GAP — gesture recognition thresholds are fixed TUNING constants (ANA3_MIN_ARC / ANA3_MIN_PEAK_VEL / ANA3_HEAVY_ARC); no user-facing setting exists',
+            gestureThreshold:'PRESENT — GESTURE SENSITIVITY (low / standard / high) scales the ANA3 gates (ANA3_MIN_ARC / ANA3_MIN_PEAK_VEL / ANA3_HEAVY_ARC) around the shipped constants; standard = shipped values exactly; analog only',
             visualization:'PRESENT — HITBOX DEBUG visualizer and BLADE-DIRECTION INDICATOR',
             shake:'PRESENT — CAMERA SHAKE toggle',
             effects:'PRESENT — EFFECTS auto/full/eco with the auto quality scaler',
-            handedness:'GAP — no full left-handed layout; the analog stick has X/Y offset steps only (the settings copy states this)'
+            handedness:'PRESENT — LEFT-HANDED LAYOUT toggle mirrors the touch clusters horizontally in both control schemes (plus the analog stick X/Y offset steps)'
           },
           note:'read-only self-check: no sim advance, no packets sent, no saves written' };
       }};
